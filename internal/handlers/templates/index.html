@@ -1,0 +1,23 @@
+{{define "index.html"}}{{template "head" .}}
+<h1>Daftar Soal</h1>
+{{if not .Problems}}
+  <p class="empty">Belum ada soal. Admin dapat menambah soal dari halaman Admin.</p>
+{{else}}
+<ul class="problems">
+  {{range .Problems}}
+  <li>
+    <a class="title" href="/p/{{.Slug}}">{{.Title}}</a>
+    {{if $.Session}}
+      {{if .Solved}}<span class="solved" title="sudah benar">✓ benar</span>
+      {{else if .Attempted}}<span class="attempted">sedang dicoba</span>{{end}}
+    {{end}}
+    <span class="pill">{{.Difficulty}}</span>
+    <span class="meta">{{.TimeLimitMS}} ms · {{.MemoryLimitKB}} KB</span>
+    {{if .Tags}}<span class="tags">{{.Tags}}</span>{{end}}
+    <span class="meta">{{.SolvedCount}} orang benar</span>
+    {{if not .HasPDF}}<span class="pill">PDF belum ada</span>{{end}}
+  </li>
+  {{end}}
+</ul>
+{{end}}
+{{template "foot" .}}{{end}}

@@ -1,0 +1,16 @@
+# Caddy snippet for lnd4su.
+#
+# Two steps, in order:
+#   1. Add the port below to caddy's `ports:` list in the compose file. Pick the
+#      position by reading the live file first: the list is NOT in numeric order,
+#      so append/insert where it actually fits instead of "sorting" it.
+#        - "8454:8454"
+#   2. Apply it with: docker compose restart caddy
+#      A Caddyfile-only change means restart, never just `up -d caddy` (up -d does
+#      not recreate the container when only the mounted Caddyfile changed).
+#
+# Add this site block to the Caddyfile:
+
+crymises-music.centralindia.cloudapp.azure.com:8454 {
+    reverse_proxy lnd4su:8080
+}

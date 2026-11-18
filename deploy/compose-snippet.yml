@@ -1,0 +1,22 @@
+# Insert this block directly under the `services:` header of the existing compose file.
+# No `networks:` line: the service joins the default compose network and Caddy
+# reaches it by container name (lnd4su:8080). No host port mapping either:
+# Caddy proxies by container name, so nothing is published on the host.
+# The `:ro` on the wiki conf mount is mandatory (the app only reads the auth file).
+
+  lnd4su:
+    image: ghcr.io/crymises/lnd4su:latest
+    container_name: lnd4su
+    restart: unless-stopped
+    # Same shape Step 0 proved: privileged + host cgroup namespace + rw cgroup
+    # mount. isolate creates and delegates cgroups, so all three are required.
+    privileged: true
+    cgroup: host
+    environment:
+      LND4SU_PORT: "8080"
+      LND4SU_DATA: /data
+      LND4SU_WORKERS: "1"
+    volumes:
+      - ./judge-data:/data
+      - ./dokuwiki-config/dokuwiki/conf:/wiki-conf:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw

@@ -1,0 +1,22 @@
+# Step-0 probe commands. Paste one line at a time on music-vm.
+# The image is built by GitHub Actions (../.github/workflows/step0.yml) so the
+# crowded box never compiles isolate. Fallback build-from-source line is last.
+
+# Pull the probe image (public, no registry auth).
+docker pull ghcr.io/crymises/lnd4su-step0:latest
+
+# Host precondition: must print cgroup2fs.
+stat -fc %T /sys/fs/cgroup
+
+# PREFERRED run: --privileged + host cgroup namespace + rw host cgroup mount.
+# This is the exact shape the judge container ships with.
+docker run --rm --privileged --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw ghcr.io/crymises/lnd4su-step0:latest
+
+# Only if the preferred run fails: same without the cgroup mount.
+docker run --rm --privileged ghcr.io/crymises/lnd4su-step0:latest
+
+# Last resort only (box is crowded, this compiles isolate on it):
+# docker build -t lnd4su-step0 /opt/lnd4su-src/step0 && docker run --rm --privileged --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw lnd4su-step0
+
+# Any failure of the preferred run must be reported, never worked around by
+# running submitted code unsandboxed.

@@ -1,0 +1,14 @@
+# Shell scripts and Dockerfiles must keep LF even though this tree is edited
+# on Windows: CRLF in probe.sh breaks `bash probe.sh` inside the container.
+* text=auto
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.go        text eol=lf
+*.html      text eol=lf
+*.css       text eol=lf
+*.c         text eol=lf
+*.json      text eol=lf
+*.pdf       binary
+*.zip       binary

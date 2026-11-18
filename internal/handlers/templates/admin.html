@@ -1,0 +1,55 @@
+{{define "admin.html"}}{{template "head" .}}
+<h1>Admin</h1>
+<p><a href="/admin/problems/new">+ Soal Baru</a></p>
+
+<h2>Soal</h2>
+{{if not .Problems}}<p class="empty">Belum ada soal.</p>{{else}}
+<table>
+  <tr><th>#</th><th>Judul</th><th>Slug</th><th>PDF</th><th></th></tr>
+  {{range .Problems}}
+  <tr>
+    <td>{{.ID}}</td>
+    <td><a href="/p/{{.Slug}}">{{.Title}}</a></td>
+    <td class="meta">{{.Slug}}</td>
+    <td>{{if .HasPDF}}ada{{else}}<span class="verdict v-wa">belum</span>{{end}}</td>
+    <td>
+      <a href="/admin/problems/{{.ID}}/edit">Ubah</a> ·
+      <a href="/admin/problems/{{.ID}}/export">Ekspor</a> ·
+      <form method="post" action="/admin/problems/{{.ID}}/rejudge" style="display:inline"><button class="link">Nilai ulang semua</button></form> ·
+      <form method="post" action="/admin/problems/{{.ID}}/delete" style="display:inline" onsubmit="return confirm('Hapus soal ini beserta semua submission-nya?')"><button class="link">Hapus</button></form>
+    </td>
+  </tr>
+  {{end}}
+</table>
+{{end}}
+
+<h2>Impor Soal</h2>
+<form method="post" action="/admin/problems/import" enctype="multipart/form-data">
+  <label for="importfile">Berkas ZIP (problem.json + statement.pdf) atau problem.json saja</label>
+  <input type="file" id="importfile" name="file" accept=".zip,.json" required>
+  <p><button type="submit">Impor</button></p>
+</form>
+
+<h2>Blokir Pengguna (hanya untuk penilaian)</h2>
+<form method="post" action="/admin/users/block">
+  <div class="row">
+    <div><label for="blockuser">Nama pengguna wiki</label><input type="text" id="blockuser" name="username" required></div>
+    <div><label for="blockreason">Alasan</label><input type="text" id="blockreason" name="reason"></div>
+  </div>
+  <p><button type="submit">Blokir</button></p>
+</form>
+{{if .Blocked}}
+<table>
+  <tr><th>Pengguna</th><th>Alasan</th><th>Oleh</th><th>Waktu</th><th></th></tr>
+  {{range .Blocked}}
+  <tr>
+    <td>{{.Username}}</td>
+    <td>{{.Reason}}</td>
+    <td class="meta">{{.BlockedBy}}</td>
+    <td class="meta">{{fmtTime .BlockedAt}}</td>
+    <td><form method="post" action="/admin/users/unblock"><input type="hidden" name="username" value="{{.Username}}"><button class="link">Buka blokir</button></form></td>
+  </tr>
+  {{end}}
+</table>
+{{end}}
+{{template "foot" .}}{{end}}

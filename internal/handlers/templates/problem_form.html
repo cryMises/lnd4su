@@ -1,0 +1,75 @@
+{{define "problem_form.html"}}{{template "head" .}}
+<h1>{{if .IsNew}}Soal Baru{{else}}Ubah Soal — {{.P.Title}}{{end}}</h1>
+
+<form method="post" enctype="multipart/form-data"
+      action="{{if .IsNew}}/admin/problems/new{{else}}/admin/problems/{{.P.ID}}/edit{{end}}">
+
+  <label for="title">Judul soal</label>
+  <input type="text" id="title" name="title" value="{{.P.Title}}" required>
+
+  {{if .IsNew}}
+  <label for="slug">Slug (URL tetap: /p/&lt;slug&gt;, tidak bisa diubah setelah dibuat)</label>
+  <input type="text" id="slug" name="slug" value="{{.P.Slug}}" pattern="[a-z0-9_-]+" required>
+  {{else}}
+  <p class="meta">URL: /p/{{.P.Slug}} (tetap)</p>
+  {{end}}
+
+  <div class="row">
+    <div>
+      <label for="difficulty">Kesulitan</label>
+      <select id="difficulty" name="difficulty">
+        <option{{if eq .P.Difficulty "Mudah"}} selected{{end}}>Mudah</option>
+        <option{{if eq .P.Difficulty "Sedang"}} selected{{end}}>Sedang</option>
+        <option{{if eq .P.Difficulty "Sulit"}} selected{{end}}>Sulit</option>
+      </select>
+    </div>
+    <div>
+      <label for="compare_mode">Perbandingan keluaran</label>
+      <select id="compare_mode" name="compare_mode">
+        <option value="tolerant"{{if eq .P.CompareMode "tolerant"}} selected{{end}}>Toleran spasi</option>
+        <option value="exact"{{if eq .P.CompareMode "exact"}} selected{{end}}>Persis sama</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label for="time_limit_ms">Batas waktu (ms)</label>
+      <input type="number" id="time_limit_ms" name="time_limit_ms" value="{{.P.TimeLimitMS}}" min="100" max="10000" required>
+    </div>
+    <div>
+      <label for="memory_limit_kb">Batas memori (KB)</label>
+      <input type="number" id="memory_limit_kb" name="memory_limit_kb" value="{{.P.MemoryLimitKB}}" min="1024" max="262144" required>
+    </div>
+  </div>
+
+  <label for="tags">Tag (pisahkan dengan koma)</label>
+  <input type="text" id="tags" name="tags" value="{{.P.Tags}}">
+
+  <label for="wiki_page_id">Halaman wiki materi (opsional, contoh: algo:sorting)</label>
+  <input type="text" id="wiki_page_id" name="wiki_page_id" value="{{.P.WikiPageID}}">
+
+  <label for="statement">Berkas pernyataan (PDF, maks 5 MB{{if .P.HasPDF}}, sudah ada — unggah untuk mengganti{{end}})</label>
+  <input type="file" id="statement" name="statement" accept="application/pdf">
+
+  <label for="samples">Contoh terlihat (satu per baris: masukan | keluaran)</label>
+  <textarea name="samples" id="samples" spellcheck="false">{{range .P.Samples}}{{.Input}} | {{.Output}}
+{{end}}</textarea>
+
+  <h2>10 Test Case (tersembunyi sampai setelah dinilai)</h2>
+  {{range .Cases}}
+  <details{{if eq .Position 1}} open{{end}}>
+    <summary>Test {{.Position}}</summary>
+    <label for="case_{{.Position}}_stdin">Masukan</label>
+    <textarea id="case_{{.Position}}_stdin" name="case_{{.Position}}_stdin" spellcheck="false">{{.Stdin}}</textarea>
+    <label for="case_{{.Position}}_expected">Keluaran yang diharapkan</label>
+    <textarea id="case_{{.Position}}_expected" name="case_{{.Position}}_expected" spellcheck="false">{{.Expected}}</textarea>
+    <label for="case_{{.Position}}_subtask">Grup subtask (opsional)</label>
+    <input type="text" id="case_{{.Position}}_subtask" name="case_{{.Position}}_subtask" value="{{.Subtask}}" list="subtasks">
+  </details>
+  {{end}}
+  <datalist id="subtasks"><option value="A"><option value="B"><option value="C"></datalist>
+
+  <p><button type="submit">{{if .IsNew}}Simpan Soal{{else}}Simpan Perubahan{{end}}</button></p>
+</form>
+{{template "foot" .}}{{end}}

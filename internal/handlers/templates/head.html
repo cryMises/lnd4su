@@ -1,0 +1,36 @@
+{{define "head"}}<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — LND4SU</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <a class="brand" href="/">
+    <strong>LND4SU</strong>
+    <span class="tagline">Latihan Ngoding Darurat 4 Soal Ujian</span>
+  </a>
+  <nav>
+    {{if .Session}}
+      <a href="/me">{{.Session.Username}}</a>
+      {{if .Session.IsAdmin}}<a href="/admin">Admin</a>{{end}}
+      <form method="post" action="/logout"><button class="link">Keluar</button></form>
+    {{else}}
+      <a href="/login">Masuk</a>
+    {{end}}
+  </nav>
+</header>
+<main>
+{{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+{{end}}
+
+{{define "foot"}}
+</main>
+<footer>
+  <a href="{{.WikiURL}}">Kembali ke wiki DoItTill</a>
+</footer>
+</body>
+</html>{{end}}

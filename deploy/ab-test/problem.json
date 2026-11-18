@@ -1,0 +1,78 @@
+{
+  "slug": "ab",
+  "title": "A+B",
+  "samples": [
+    {
+      "input": "2 3\n",
+      "output": "5\n"
+    }
+  ],
+  "tags": "latihan,dasar",
+  "difficulty": "Mudah",
+  "time_limit_ms": 1000,
+  "memory_limit_kb": 65536,
+  "compare_mode": "tolerant",
+  "wiki_page_id": "",
+  "test_cases": [
+    {
+      "position": 1,
+      "stdin": "2 3\n",
+      "expected_stdout": "5\n",
+      "subtask": "A"
+    },
+    {
+      "position": 2,
+      "stdin": "10 20\n",
+      "expected_stdout": "30\n",
+      "subtask": "A"
+    },
+    {
+      "position": 3,
+      "stdin": "7 8\n",
+      "expected_stdout": "15\n",
+      "subtask": "A"
+    },
+    {
+      "position": 4,
+      "stdin": "100 1\n",
+      "expected_stdout": "101\n",
+      "subtask": "A"
+    },
+    {
+      "position": 5,
+      "stdin": "0 0\n",
+      "expected_stdout": "0\n",
+      "subtask": "A"
+    },
+    {
+      "position": 6,
+      "stdin": "41 1\n",
+      "expected_stdout": "42\n",
+      "subtask": "B"
+    },
+    {
+      "position": 7,
+      "stdin": "5 5\n",
+      "expected_stdout": "10\n",
+      "subtask": "B"
+    },
+    {
+      "position": 8,
+      "stdin": "999 1\n",
+      "expected_stdout": "1000\n",
+      "subtask": "B"
+    },
+    {
+      "position": 9,
+      "stdin": "12 34\n",
+      "expected_stdout": "46\n",
+      "subtask": "B"
+    },
+    {
+      "position": 10,
+      "stdin": "500000000 500000000\n",
+      "expected_stdout": "1000000000\n",
+      "subtask": "B"
+    }
+  ]
+}

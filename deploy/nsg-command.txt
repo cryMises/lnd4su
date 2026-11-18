@@ -1,0 +1,13 @@
+# NSG rule for lnd4su (port 8454).
+#
+# Run in Azure Cloud Shell, never on the VM (az CLI is not installed there and the
+# VM has no credentials for the subscription).
+#
+# Check the live rules first, priorities change over time:
+#   az network nsg rule list -g n8n-rg --nsg-name music-vmNSG -o table \
+#     --query "[].{Name:name,Priority:priority,Port:destinationPortRange}"
+#
+# As of 2026-11-18 priorities 1000-1010 were in use, so 1011 is the expected next
+# free priority. Confirm from the output above before running this.
+
+az network nsg rule create -g n8n-rg --nsg-name music-vmNSG -n allow-lnd4su-8454 --priority 1011 --direction Inbound --access Allow --protocol Tcp --source-address-prefixes '*' --source-port-ranges '*' --destination-address-prefixes '*' --destination-port-ranges 8454

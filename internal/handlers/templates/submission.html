@@ -1,0 +1,68 @@
+{{define "submission.html"}}{{template "head" .}}
+<h1>Submission #{{.Sub.ID}}</h1>
+<p class="meta">
+  <a href="/p/{{.P.Slug}}">{{.P.Title}}</a> ·
+  {{.Sub.Language}} · {{fmtTime .Sub.CreatedAt}}
+</p>
+<p>
+  {{if eq .Sub.Status "done"}}
+    <span class="verdict {{verdictClass .Sub.Verdict}}">{{.Sub.Verdict}}</span>
+    · skor {{.Sub.PassedCount}}/10
+  {{else}}
+    <span id="pending">Sedang {{if eq .Sub.Status "queued"}}menunggu giliran{{else}}dinilai{{end}}…</span>
+  {{end}}
+</p>
+{{if .Subtasks}}
+<p class="meta">Subtask:
+  {{range .Subtasks}}<span class="pill">{{.Label}}: {{.Pass}}/{{.Total}}</span> {{end}}
+</p>
+{{end}}
+
+{{if .Sub.CompileLog}}
+<h2>Keluaran Compiler</h2>
+<pre>{{.Sub.CompileLog}}</pre>
+{{end}}
+
+{{if eq .Sub.Status "done"}}
+<h2>Rincian per Test</h2>
+<table>
+  <tr><th>#</th><th>Hasil</th><th>Waktu</th><th>Memori</th></tr>
+  {{range .Sub.Cases}}
+  <tr>
+    <td>{{.Position}}</td>
+    <td><span class="verdict {{verdictClass .Verdict}}">{{.Verdict}}</span></td>
+    <td>{{.TimeMS}} ms</td>
+    <td>{{.MemoryKB}} KB</td>
+  </tr>
+  {{if ne .Verdict "AC"}}
+  <tr><td></td><td colspan="3" class="detail">
+    <details>
+      <summary>Lihat masukan / yang diharapkan / keluaran program</summary>
+      <p class="hint">Masukan</p><pre>{{.Stdin}}</pre>
+      <p class="hint">Diharapkan</p><pre>{{.Expected}}</pre>
+      <p class="hint">Keluaran program{{if .Truncated}} (dipotong 1 MB){{end}}</p><pre>{{if .Actual}}{{.Actual}}{{else}}(kosong){{end}}</pre>
+    </details>
+  </td></tr>
+  {{end}}
+  {{end}}
+</table>
+{{end}}
+
+{{if .Session.IsAdmin}}
+<form method="post" action="/admin/submissions/{{.Sub.ID}}/rejudge">
+  <p><button type="submit">Nilai ulang submission ini</button></p>
+</form>
+{{end}}
+
+<h2>Kode</h2>
+<pre>{{.Sub.Source}}</pre>
+{{if ne .Sub.Status "done"}}
+<script>
+(function poll(){
+  fetch('/s/{{.Sub.ID}}/status').then(function(r){return r.json()}).then(function(d){
+    if(d.status==='done'){location.reload()}else{setTimeout(poll,2000)}
+  }).catch(function(){setTimeout(poll,4000)});
+})();
+</script>
+{{end}}
+{{template "foot" .}}{{end}}
