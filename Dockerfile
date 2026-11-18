@@ -9,7 +9,7 @@ RUN CGO_ENABLED=0 GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /out/lnd4s
 
 FROM debian:bookworm AS iso
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        git gcc make pkg-config libcap-dev libseccomp-dev ca-certificates \
+        git gcc make pkg-config libcap-dev libseccomp-dev libc6-dev ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 # Only `make isolate`: isolate-cg-keeper is a systemd helper (needs
 # libsystemd via pkg-config) and is useless inside a container, where the
@@ -21,7 +21,7 @@ RUN git clone --depth 1 https://github.com/ioi/isolate /tmp/isolate \
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        gcc g++ libcap2-bin libseccomp2 curl ca-certificates \
+        gcc g++ libc6-dev libcap2-bin libseccomp2 curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=app /out/lnd4su /usr/local/bin/lnd4su

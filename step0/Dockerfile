@@ -11,7 +11,7 @@ FROM debian:bookworm
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      git gcc g++ make pkg-config libcap-dev libseccomp-dev ca-certificates coreutils \
+      git gcc g++ make pkg-config libcap-dev libseccomp-dev libc6-dev ca-certificates coreutils \
  && rm -rf /var/lib/apt/lists/*
 
 # Build isolate from source. This git clone is the only network access the
