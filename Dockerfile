@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN git clone --depth 1 https://github.com/ioi/isolate /tmp/isolate \
     && cd /tmp/isolate \
     && make isolate \
+    && mkdir -p /out \
     && install -m 0755 isolate /out/isolate
 
 FROM debian:bookworm-slim AS runtime
