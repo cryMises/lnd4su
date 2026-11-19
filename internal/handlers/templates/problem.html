@@ -10,9 +10,19 @@
 </div>
 
 {{if .P.HasPDF}}
-  <div class="card pdf-card">
-    <iframe class="pdf" src="/p/{{.P.Slug}}/statement.pdf" title="Pernyataan soal"></iframe>
-    <p class="hint"><a href="/p/{{.P.Slug}}/statement.pdf">Buka PDF di tab baru</a></p>
+  <div class="card">
+    <h2 class="section-title">Baca halaman</h2>
+    {{if .Pages}}
+    <p class="hint">Semua {{len .Pages}} halaman ada di bawah — tap satu halaman buat buka versi besarnya.</p>
+    <div class="statement-pages">
+      {{range .Pages}}
+      <a href="/p/{{$.P.Slug}}/pages/{{.}}" target="_blank" rel="noopener"><img src="/p/{{$.P.Slug}}/pages/{{.}}" alt="Halaman pernyataan soal" loading="lazy"></a>
+      {{end}}
+    </div>
+    {{else}}
+    <p class="hint">Pernyataan soal belum bisa ditampilkan sebagai gambar.</p>
+    {{end}}
+    <p class="hint"><a href="/p/{{.P.Slug}}/statement.pdf" target="_blank" rel="noopener">Buka PDF</a></p>
   </div>
 {{else}}
   <p class="error">Soal ini belum punya berkas PDF. Menunggu admin mengunggah pernyataan soal — belum bisa disubmit.</p>
