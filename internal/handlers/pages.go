@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -545,7 +546,15 @@ func (a *App) adminImport(w http.ResponseWriter, r *http.Request) {
 			adminErr(w, "ZIP tidak valid")
 			return
 		}
+		// A bundle zip holds problem.json (+ statement.pdf) at its root. A
+		// collection zip holds several bundles as nested zips instead; import
+		// each of those and report how many landed.
+		var nested []*zip.File
 		for _, zf := range zr.File {
+			if strings.HasSuffix(strings.ToLower(zf.Name), ".zip") {
+				nested = append(nested, zf)
+				continue
+			}
 			rc, err := zf.Open()
 			if err != nil {
 				adminErr(w, "ZIP rusak")
@@ -553,44 +562,125 @@ func (a *App) adminImport(w http.ResponseWriter, r *http.Request) {
 			}
 			data, _ := io.ReadAll(io.LimitReader(rc, 8<<20))
 			rc.Close()
-			switch zf.Name {
+			switch filepath.Base(zf.Name) {
 			case "problem.json":
 				jsonBytes = data
 			case "statement.pdf":
 				pdfBytes = data
 			}
 		}
-	default:
+		if jsonBytes == nil && len(nested) > 0 {
+			a.importNestedZips(w, r, nested)
+			return
+		}
+	case strings.HasSuffix(strings.ToLower(hdr.Filename), ".json"):
 		jsonBytes = raw
 	}
-	var b bundle
-	if err := json.Unmarshal(jsonBytes, &b); err != nil {
-		adminErr(w, "JSON tidak valid: "+err.Error())
+	if jsonBytes == nil {
+		adminErr(w, "ZIP harus berisi problem.json di level atas (atau beberapa ZIP soal di dalamnya)")
 		return
 	}
-	if err := b.validate(); err != nil {
+	if _, err := a.importBundle(jsonBytes, pdfBytes, a.session(r).Username); err != nil {
 		adminErr(w, err.Error())
 		return
 	}
+	http.Redirect(w, r, "/admin/problems", http.StatusSeeOther)
+}
+
+// importBundle stores one problem bundle. Shared by the single-bundle path and
+// the collection-zip path so both behave identically.
+func (a *App) importBundle(jsonBytes, pdfBytes []byte, username string) (int64, error) {
+	var b bundle
+	if err := json.Unmarshal(jsonBytes, &b); err != nil {
+		return 0, errors.New("JSON tidak valid: " + err.Error())
+	}
+	if err := b.validate(); err != nil {
+		return 0, err
+	}
 	p := &store.Problem{Slug: b.Slug, Title: b.Title, Samples: b.Samples, Tags: b.Tags,
 		Difficulty: b.Difficulty, TimeLimitMS: b.TimeLimitMS, MemoryLimitKB: b.MemoryLimitKB,
-		CompareMode: b.CompareMode, WikiPageID: b.WikiPageID, CreatedBy: a.session(r).Username}
+		CompareMode: b.CompareMode, WikiPageID: b.WikiPageID, CreatedBy: username}
 	cases := make([]store.TestCase, 0, 10)
 	for i, c := range b.Cases {
 		cases = append(cases, store.TestCase{Position: i + 1, Stdin: c.Stdin, Expected: c.Expected, Subtask: c.Subtask})
 	}
 	id, err := a.St.CreateProblem(p, cases)
 	if err != nil {
-		adminErr(w, "gagal impor: "+err.Error())
-		return
+		return 0, errors.New("gagal impor: " + err.Error())
 	}
 	if len(pdfBytes) > 0 && bytes.HasPrefix(pdfBytes, []byte("%PDF")) {
 		name := fmt.Sprintf("%d.pdf", id)
 		if err := writeData(a.DataDir, []string{"statements", name}, pdfBytes); err != nil {
-			adminErr(w, "impor berhasil tapi PDF gagal disimpan: "+err.Error())
-			return
+			return 0, errors.New("impor berhasil tapi PDF gagal disimpan: " + err.Error())
 		}
 		_ = a.St.SetStatement(id, name)
+	}
+	return id, nil
+}
+
+// importNestedZips imports a zip full of bundle zips, skipping duplicates so a
+// re-upload does not fail halfway through.
+func (a *App) importNestedZips(w http.ResponseWriter, r *http.Request, nested []*zip.File) {
+	username := a.session(r).Username
+	existing, err := a.St.ListProblems()
+	if err != nil {
+		adminErr(w, "gagal membaca daftar soal: "+err.Error())
+		return
+	}
+	have := make(map[string]bool, len(existing))
+	for _, p := range existing {
+		have[p.Slug] = true
+	}
+	var added, skipped []string
+	var failures []string
+	for _, zf := range nested {
+		rc, err := zf.Open()
+		if err != nil {
+			failures = append(failures, filepath.Base(zf.Name)+": tidak bisa dibuka")
+			continue
+		}
+		raw, _ := io.ReadAll(io.LimitReader(rc, 8<<20))
+		rc.Close()
+		zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+		if err != nil {
+			failures = append(failures, filepath.Base(zf.Name)+": ZIP tidak valid")
+			continue
+		}
+		var jsonBytes, pdfBytes []byte
+		for _, inner := range zr.File {
+			rc, err := inner.Open()
+			if err != nil {
+				continue
+			}
+			data, _ := io.ReadAll(io.LimitReader(rc, 8<<20))
+			rc.Close()
+			switch filepath.Base(inner.Name) {
+			case "problem.json":
+				jsonBytes = data
+			case "statement.pdf":
+				pdfBytes = data
+			}
+		}
+		name := filepath.Base(zf.Name)
+		if jsonBytes == nil {
+			failures = append(failures, name+": tidak ada problem.json")
+			continue
+		}
+		var probe bundle
+		if err := json.Unmarshal(jsonBytes, &probe); err == nil && have[probe.Slug] {
+			skipped = append(skipped, probe.Slug)
+			continue
+		}
+		if _, err := a.importBundle(jsonBytes, pdfBytes, username); err != nil {
+			failures = append(failures, name+": "+err.Error())
+			continue
+		}
+		added = append(added, probe.Slug)
+	}
+	if len(failures) > 0 {
+		adminErr(w, fmt.Sprintf("berhasil %d, dilewati %d, gagal %d: %s",
+			len(added), len(skipped), len(failures), strings.Join(failures, "; ")))
+		return
 	}
 	http.Redirect(w, r, "/admin/problems", http.StatusSeeOther)
 }
