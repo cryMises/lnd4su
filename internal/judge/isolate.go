@@ -175,7 +175,7 @@ func (b *Box) Run(ctx context.Context, spec RunSpec) (Meta, error) {
 		// as RE instead of MLE; the address-space cap is only a backstop.
 		"--mem=" + strconv.FormatInt(spec.MemKB*2, 10),
 		"--cg-mem=" + strconv.FormatInt(spec.MemKB, 10),
-		"--fsize=2048", // KB per file; caps runaway output
+		"--fsize=2048", // KB per file; caps runaway output (compile overrides)
 		"--meta=" + filepath.Join(b.dir(), "meta.txt"),
 		"--stdin=input.txt",
 		"--stdout=output.txt",
@@ -185,7 +185,10 @@ func (b *Box) Run(ctx context.Context, spec RunSpec) (Meta, error) {
 		// isolate starts the program with a nearly empty environment (it only
 		// sets LIBC_FATAL_STDERR_). gcc locates cc1/as/ld through PATH, so
 		// without this every compile dies with "error trying to exec 'as'".
+		// The compiled binary also needs more room than a run's output cap:
+		// heavy C++ STL programs land well above 2 MB.
 		args = append(args, "--processes=64", "--env=PATH="+toolPath)
+		args = append(args, "--fsize=16384") // last --fsize wins
 	}
 	if spec.ExtraTime > 0 {
 		args = append(args, "--extra-time="+strconv.FormatFloat(spec.ExtraTime, 'f', 3, 64))
