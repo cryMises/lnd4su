@@ -166,6 +166,8 @@ run_case() (
         /usr/bin/gcc -O2 -std=c17 -o prog main.c
     rc=$?
     status=$(meta "$BOX_ROOT/$BOX_ID/compile.meta" status)
+    # isolate writes no status key at all on normal termination
+    [ -n "$status" ] || status=OK
 
     if [ "$v" = CE ]; then
         if [ "$rc" -ne 0 ] || { [ -n "$status" ] && [ "$status" != OK ]; }; then
@@ -204,6 +206,8 @@ run_case() (
     [ -n "$mem" ] || mem=$(meta "$BOX_ROOT/$BOX_ID/run.meta" max-rss)
     [ -n "$mem" ] || mem="-"
     status=$(meta "$BOX_ROOT/$BOX_ID/run.meta" status)
+    # no status key means normal termination
+    [ -n "$status" ] || status=OK
     oom=$(meta "$BOX_ROOT/$BOX_ID/run.meta" cg-oom-killed)
     killed=$(meta "$BOX_ROOT/$BOX_ID/run.meta" killed)
     cm=$(meta "$BOX_ROOT/$BOX_ID/run.meta" cg-mem)
