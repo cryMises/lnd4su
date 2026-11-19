@@ -177,12 +177,13 @@ ul.problems.solved-list li::before{
 }
 ul.problems.solved-list a.title{font-weight:700; text-decoration:none}
 
-/* ---- pdf / samples / code ---- */
-.pdf-card{padding:.7rem}
-iframe.pdf{
-  display:block; width:100%; height:70vh; min-height:20rem;
-  border:2px solid var(--line); border-radius:10px; background:#fff;
+/* ---- statement pages (PDF rendered as images) / samples / code ---- */
+.statement-pages{display:grid; gap:.9rem}
+.statement-pages a{
+  display:block; border:2px solid var(--line); border-radius:10px;
+  overflow:hidden; background:#fff; line-height:0;
 }
+.statement-pages img{display:block; width:100%; height:auto}
 pre,code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 pre{
   background:var(--code-bg); border:2px solid var(--line); border-radius:10px;
@@ -317,7 +318,6 @@ ul.history{list-style:none; padding:0; margin:0; display:grid; gap:.8rem}
   nav{gap:.6rem}
   .card{padding:.9rem; box-shadow:3px 3px 0 var(--shadow)}
   textarea.code{min-height:13rem}
-  iframe.pdf{height:56vh; min-height:16rem}
 
   /* sticky submit bar, never permanently over the code box */
   .submit-form{padding-bottom:5.25rem}
