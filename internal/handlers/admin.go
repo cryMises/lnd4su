@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -249,6 +250,12 @@ func (a *App) saveUploadedPDF(r *http.Request, id int64) string {
 	if err := a.St.SetStatement(id, name); err != nil {
 		return "gagal menautkan PDF: " + err.Error()
 	}
+	// Re-render the statement pages from the new PDF. Best effort: a
+	// failure only logs, the problem page regenerates them lazily.
+	a.dropStatementPages(id)
+	if _, err := a.statementPages(id, name); err != nil {
+		log.Printf("statement pages %d: %v", id, err)
+	}
 	return ""
 }
 
@@ -280,6 +287,7 @@ func (a *App) adminProblemDelete(w http.ResponseWriter, r *http.Request) {
 	if name, ok := a.St.StatementFile(id); ok {
 		removeData(a.DataDir, "statements", name)
 	}
+	a.dropStatementPages(id)
 	if err := a.St.DeleteProblem(id); err != nil {
 		serverError(w, err)
 		return
