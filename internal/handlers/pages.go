@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -48,6 +49,7 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) {
 type problemData struct {
 	baseData
 	P           *store.Problem
+	Pages       []string
 	Mine        []store.SubmissionRow
 	PrevSource  string
 	PrevLang    string
@@ -92,6 +94,10 @@ func (a *App) problemPage(w http.ResponseWriter, r *http.Request) {
 	if d.PrevLang == "" {
 		d.PrevLang = "c"
 	}
+	// Rendered statement pages (PDF as images). Generated on first view for
+	// problems imported before this feature; a failure leaves Pages empty
+	// and the template falls back to the plain PDF link.
+	a.withPages(p, &d)
 	a.render(w, "problem.html", d)
 }
 
@@ -119,6 +125,34 @@ func (a *App) statementPDF(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", "inline")
 	http.ServeContent(w, r, name, p.CreatedAt, f)
+}
+
+// statementPageImage serves one rendered statement page
+// (GET /p/{slug}/pages/page-NN.png). The filename is validated to the
+// page-NN.png shape so it can never escape the problem's pages directory.
+func (a *App) statementPageImage(w http.ResponseWriter, r *http.Request) {
+	p, err := a.St.ProblemBySlug(r.PathValue("slug"))
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	file := r.PathValue("file")
+	if filepath.Base(file) != file || !strings.HasPrefix(file, "page-") || !strings.HasSuffix(file, ".png") {
+		http.NotFound(w, r)
+		return
+	}
+	f, err := openData(a.DataDir, "statements", fmt.Sprint(p.ID), "pages", file)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	w.Header().Set("Content-Type", "image/png")
+	http.ServeContent(w, r, file, p.CreatedAt, f)
 }
 
 type submissionData struct {
@@ -312,7 +346,9 @@ func (a *App) runMode(w http.ResponseWriter, r *http.Request) {
 	d := runData{baseData: a.base(r, "Coba Kode — "+p.Title), P: p, Source: src, Lang: lang, Stdin: stdin}
 	if strings.TrimSpace(src) == "" {
 		d.Error = "kode masih kosong"
-		a.render(w, "problem.html", problemData{baseData: d.baseData, P: p, PrevSource: src, PrevLang: lang, Stdin: stdin})
+		pd := problemData{baseData: d.baseData, P: p, PrevSource: src, PrevLang: lang, Stdin: stdin}
+		a.withPages(p, &pd)
+		a.render(w, "problem.html", pd)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
@@ -323,7 +359,9 @@ func (a *App) runMode(w http.ResponseWriter, r *http.Request) {
 	} else {
 		d.Result = res
 	}
-	a.render(w, "problem.html", problemData{baseData: d.baseData, P: p, PrevSource: src, PrevLang: lang, Stdin: stdin, Run: d.Result})
+	pd := problemData{baseData: d.baseData, P: p, PrevSource: src, PrevLang: lang, Stdin: stdin, Run: d.Result}
+	a.withPages(p, &pd)
+	a.render(w, "problem.html", pd)
 }
 
 type loginData struct {
@@ -614,6 +652,13 @@ func (a *App) importBundle(jsonBytes, pdfBytes []byte, username string) (int64, 
 			return 0, errors.New("impor berhasil tapi PDF gagal disimpan: " + err.Error())
 		}
 		_ = a.St.SetStatement(id, name)
+		// Render the statement pages now so the first viewer does not pay
+		// the conversion cost. Best effort: a failure only logs, the
+		// problem page regenerates them lazily on first view.
+		a.dropStatementPages(id)
+		if _, err := a.statementPages(id, name); err != nil {
+			log.Printf("statement pages %d: %v", id, err)
+		}
 	}
 	return id, nil
 }
