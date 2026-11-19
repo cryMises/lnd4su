@@ -5,10 +5,9 @@
 <h2>Soal</h2>
 {{if not .Problems}}<p class="empty">Belum ada soal.</p>{{else}}
 <table>
-  <tr><th>#</th><th>Judul</th><th>Slug</th><th>PDF</th><th></th></tr>
+  <tr><th>Judul</th><th>Slug</th><th>PDF</th><th></th></tr>
   {{range .Problems}}
   <tr>
-    <td>{{.ID}}</td>
     <td><a href="/p/{{.Slug}}">{{.Title}}</a></td>
     <td class="meta">{{.Slug}}</td>
     <td>{{if .HasPDF}}ada{{else}}<span class="verdict v-wa">belum</span>{{end}}</td>
