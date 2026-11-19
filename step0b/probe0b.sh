@@ -7,6 +7,10 @@
 # (two compiles + two runs, each with the app's real limits) and reports whether
 # the peak stayed inside headroom.
 #
+# Swap growth is the decisive signal on this box: it already sits near its swap
+# ceiling, so growth under judging means the second worker pressures the nine
+# services that are already running. Override with LND4SU_SWAP_GROWTH_MB.
+#
 # Run (same privileged shape as Step 0):
 #   docker run --rm --privileged --cgroupns=host \
 #     -v /sys/fs/cgroup:/sys/fs/cgroup:rw lnd4su-step0b
@@ -75,10 +79,14 @@ enable_mem "$CG_PATH" || true
 printf '%s\n' "$CG_PATH" > /run/isolate/cgroup
 say "cgroup pool: $CG_PATH (memory.max=$(cat "$CG_PATH/memory.max" 2>/dev/null || echo MISSING))"
 
+swap_mb() { awk '/^SwapTotal:/ {t=$2} /^SwapFree:/ {f=$2} END {print int((t-f)/1024)}' /proc/meminfo; }
+
 BEFORE_HOST=$(host_mb)
+BEFORE_SWAP=$(swap_mb)
 BEFORE_POOL=$(pool_mb)
 say "host memory.current before: ${BEFORE_HOST} MB (whole box)"
 say "pool memory.current before: ${BEFORE_POOL} MB (judge only)"
+say "swap in use before: ${BEFORE_SWAP} MB"
 
 # One full pipeline: init -> compile a real C++ submission -> run it on 3 cases.
 # $1 = box id. Mirrors the app: compile 10 s / 512 MB, cases 1 s / 64 MB.
@@ -175,14 +183,22 @@ if [ "$R0" -ne 0 ] || [ "$R1" -ne 0 ]; then
     exit 1
 fi
 
-# swap growth is the decisive signal when the box is already tight
-SWAP_USED=$(awk '/^SwapTotal:/ {t=$2} /^SwapFree:/ {f=$2} END {print int((t-f)/1024)}' /proc/meminfo)
-say "swap in use now: ${SWAP_USED} MB"
+
+AFTER_SWAP=$(swap_mb)
+SWAP_GROWTH=$(( AFTER_SWAP - BEFORE_SWAP ))
+say "swap in use after: ${AFTER_SWAP} MB (growth ${SWAP_GROWTH} MB)"
 
 DELTA=$(( PEAK_HOST - BEFORE_HOST ))
 [ "$DELTA" -lt 0 ] && DELTA=0
-if [ "$DELTA" -le "$MAX_MB" ]; then
-    say "VERDICT: KEEP 2 WORKERS -- judging added ${DELTA} MB, inside the ${MAX_MB} MB headroom"
+
+# Swap growth is decisive: this box already sits near its swap ceiling, so any
+# growth under judging means the second worker pushes real pressure onto the
+# nine services that are already there. The MB budget is the second test.
+SWAP_LIMIT=${LND4SU_SWAP_GROWTH_MB:-8}
+if [ "$SWAP_GROWTH" -gt "$SWAP_LIMIT" ]; then
+    say "VERDICT: SHIP 1 WORKER -- swap grew ${SWAP_GROWTH} MB (limit ${SWAP_LIMIT} MB); judging pushed the box into swap"
+elif [ "$DELTA" -le "$MAX_MB" ]; then
+    say "VERDICT: KEEP 2 WORKERS -- judging added ${DELTA} MB, swap growth ${SWAP_GROWTH} MB, both inside budget"
 else
     say "VERDICT: SHIP 1 WORKER -- judging added ${DELTA} MB, over the ${MAX_MB} MB headroom"
 fi
