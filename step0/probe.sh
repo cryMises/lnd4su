@@ -70,12 +70,15 @@ EOF
 say "wrote config /usr/local/etc/isolate"
 mkdir -p /run/isolate/locks "$BOX_ROOT"
 
-if echo "$CONTROLLERS" | grep -qw memory; then
-    CG_PATH=/sys/fs/cgroup
-elif [ -d /sys/fs/cgroup/unified ]; then
-    CG_PATH=/sys/fs/cgroup/unified
+if [ -n "${LND4SU_CGROUP_ROOT:-}" ]; then
+    CG_PATH=$LND4SU_CGROUP_ROOT
 else
-    CG_PATH=/sys/fs/cgroup
+    REL=$(awk -F: '$1 == "0" {print $3; exit}' /proc/self/cgroup 2>/dev/null)
+    CG_PATH="/sys/fs/cgroup${REL}"
+fi
+say "cgroup path: $CG_PATH"
+if [ ! -w "$CG_PATH" ]; then
+    say "ERROR: $CG_PATH is not writable; the container needs --privileged with /sys/fs/cgroup mounted rw"
 fi
 # cgroup v2 forbids enabling a controller on a cgroup that has processes in
 # it, so move this container's processes into a child first.
