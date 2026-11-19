@@ -36,14 +36,24 @@ meta() { awk -F: -v k="$2" '$1==k {print $2; exit}' "$1" 2>/dev/null; }
 #   pool  - the judge's own cgroup pool, i.e. just the sandboxed work.
 # memory.peak is deliberately not used: it is cumulative since boot, so any
 # earlier run would poison the baseline.
+# An unreadable or unparsable file yields "NA", never 0: a silent zero would
+# look like a real measurement and turn the gate into a rubber stamp.
 mb_of() {
     local v
-    v=$(cat "$1" 2>/dev/null || echo 0)
-    case "$v" in ''|max) v=0 ;; esac
+    [ -r "$1" ] || { echo NA; return; }
+    v=$(cat "$1" 2>/dev/null)
+    case "$v" in ''|max) echo NA; return ;; esac
+    case "$v" in *[!0-9]*) echo NA; return ;; esac
     echo $(( v / 1024 / 1024 ))
 }
 host_mb() { mb_of "$CG_MOUNT/memory.current"; }
 pool_mb() { mb_of "$CG_PATH/memory.current"; }
+
+# MemAvailable is host-wide inside the container (it reads the host /proc), so
+# it works even when a cgroup file is not readable. It is also the honest
+# question for a shared box: how much memory the other services LOST while
+# judging ran. Kept as a second, independent signal.
+avail_mb() { awk '/^MemAvailable:/ {print int($2/1024); exit}' /proc/meminfo; }
 
 if [ "$(id -u)" != 0 ]; then
     say "FATAL: must run as root (isolate sandbox)"
@@ -84,9 +94,12 @@ swap_mb() { awk '/^SwapTotal:/ {t=$2} /^SwapFree:/ {f=$2} END {print int((t-f)/1
 BEFORE_HOST=$(host_mb)
 BEFORE_SWAP=$(swap_mb)
 BEFORE_POOL=$(pool_mb)
+BEFORE_AVAIL=$(avail_mb)
 say "host memory.current before: ${BEFORE_HOST} MB (whole box)"
 say "pool memory.current before: ${BEFORE_POOL} MB (judge only)"
+say "MemAvailable before: ${BEFORE_AVAIL} MB"
 say "swap in use before: ${BEFORE_SWAP} MB"
+say "probe reads: /sys/fs/cgroup/memory.current=$( [ -r "$CG_MOUNT/memory.current" ] && echo readable || echo UNREADABLE) ${CG_PATH}/memory.current=$( [ -r "$CG_PATH/memory.current" ] && echo readable || echo UNREADABLE)"
 
 # One full pipeline: init -> compile a real C++ submission -> run it on 3 cases.
 # $1 = box id. Mirrors the app: compile 10 s / 512 MB, cases 1 s / 64 MB.
@@ -145,7 +158,7 @@ SAMPLES=/tmp/step0b.samples
 : > "$SAMPLES"
 (
     while :; do
-        printf '%s\n' "$(tree_current_mb)" >> "$SAMPLES"
+        printf '%s %s %s\n' "$(host_mb)" "$(pool_mb)" "$(avail_mb)" >> "$SAMPLES"
         sleep 0.2
     done
 ) &
@@ -165,16 +178,19 @@ wait $SAMPLER 2>/dev/null
 
 cat /tmp/w0.log /tmp/w1.log
 
-PEAK_HOST=$(awk '{print $1}' "$SAMPLES" 2>/dev/null | sort -n | tail -1)
-PEAK_POOL=$(awk '{print $2}' "$SAMPLES" 2>/dev/null | sort -n | tail -1)
-[ -n "${PEAK_HOST:-}" ] || PEAK_HOST=0
-[ -n "${PEAK_POOL:-}" ] || PEAK_POOL=0
+PEAK_HOST=$(awk '$1 ~ /^[0-9]+$/ {if ($1+0 > m) m=$1+0} END {print (NR && m != "" ? m : "NA")}' "$SAMPLES" 2>/dev/null)
+PEAK_POOL=$(awk '$2 ~ /^[0-9]+$/ {if ($2+0 > m) m=$2+0} END {print (NR && m != "" ? m : "NA")}' "$SAMPLES" 2>/dev/null)
+MIN_AVAIL=$(awk '$3 ~ /^[0-9]+$/ {if (m == "" || $3+0 < m) m=$3+0} END {print (NR && m != "" ? m : "NA")}' "$SAMPLES" 2>/dev/null)
+[ -n "${PEAK_HOST:-}" ] || PEAK_HOST=NA
+[ -n "${PEAK_POOL:-}" ] || PEAK_POOL=NA
+[ -n "${MIN_AVAIL:-}" ] || MIN_AVAIL=NA
 DUR=$(( (END - START) / 1000000 ))
 
 say "--- measurement ---"
 say "wall time for both pipelines: ${DUR} ms"
-say "peak host memory.current: ${PEAK_HOST} MB (added $(( PEAK_HOST - BEFORE_HOST )) MB over baseline)"
+say "peak host memory.current: ${PEAK_HOST} MB (baseline ${BEFORE_HOST} MB)"
 say "peak pool memory.current: ${PEAK_POOL} MB (judging alone)"
+say "lowest MemAvailable: ${MIN_AVAIL} MB (baseline ${BEFORE_AVAIL} MB)"
 say "headroom budget: ${MAX_MB} MB"
 say "worker exit codes: $R0 $R1"
 
@@ -188,18 +204,49 @@ AFTER_SWAP=$(swap_mb)
 SWAP_GROWTH=$(( AFTER_SWAP - BEFORE_SWAP ))
 say "swap in use after: ${AFTER_SWAP} MB (growth ${SWAP_GROWTH} MB)"
 
-DELTA=$(( PEAK_HOST - BEFORE_HOST ))
-[ "$DELTA" -lt 0 ] && DELTA=0
-
 # Swap growth is decisive: this box already sits near its swap ceiling, so any
 # growth under judging means the second worker pushes real pressure onto the
 # nine services that are already there. The MB budget is the second test.
 SWAP_LIMIT=${LND4SU_SWAP_GROWTH_MB:-8}
+
+# Two independent memory signals, either one is usable:
+#   DELTA      - peak host memory.current over baseline (cgroup, exact)
+#   AVAIL_DROP - how much MemAvailable the box lost (fallback, always readable)
+DELTA=NA
+if [ "$PEAK_HOST" != NA ] && [ "$BEFORE_HOST" != NA ]; then
+    DELTA=$(( PEAK_HOST - BEFORE_HOST ))
+    [ "$DELTA" -lt 0 ] && DELTA=0
+fi
+AVAIL_DROP=NA
+if [ "$MIN_AVAIL" != NA ] && [ "$BEFORE_AVAIL" != NA ]; then
+    AVAIL_DROP=$(( BEFORE_AVAIL - MIN_AVAIL ))
+    [ "$AVAIL_DROP" -lt 0 ] && AVAIL_DROP=0
+fi
+
+say "memory delta: ${DELTA} MB (cgroup), avail drop: ${AVAIL_DROP} MB"
+
+if [ "$DELTA" = NA ] && [ "$AVAIL_DROP" = NA ]; then
+    say "VERDICT: INCONCLUSIVE -- neither memory signal was readable."
+    say "Swap grew ${SWAP_GROWTH} MB (limit ${SWAP_LIMIT} MB). Report these numbers."
+    exit 1
+fi
+
 if [ "$SWAP_GROWTH" -gt "$SWAP_LIMIT" ]; then
     say "VERDICT: SHIP 1 WORKER -- swap grew ${SWAP_GROWTH} MB (limit ${SWAP_LIMIT} MB); judging pushed the box into swap"
-elif [ "$DELTA" -le "$MAX_MB" ]; then
-    say "VERDICT: KEEP 2 WORKERS -- judging added ${DELTA} MB, swap growth ${SWAP_GROWTH} MB, both inside budget"
+    exit 0
+fi
+
+# Whichever signals are readable must clear the headroom budget. Both are
+# checked: on a box that already runs nine other services, a disagreement
+# between them is not something to average away -- if either says the box
+# suffered, the second worker does not ship.
+OVER=""
+[ "$DELTA" != NA ] && [ "$DELTA" -gt "$MAX_MB" ] && OVER="cgroup memory grew ${DELTA} MB"
+[ "$AVAIL_DROP" != NA ] && [ "$AVAIL_DROP" -gt "$MAX_MB" ] && OVER="${OVER:+$OVER; }the box lost ${AVAIL_DROP} MB of MemAvailable"
+
+if [ -n "$OVER" ]; then
+    say "VERDICT: SHIP 1 WORKER -- over the ${MAX_MB} MB headroom: ${OVER}"
 else
-    say "VERDICT: SHIP 1 WORKER -- judging added ${DELTA} MB, over the ${MAX_MB} MB headroom"
+    say "VERDICT: KEEP 2 WORKERS -- cgroup delta ${DELTA} MB, MemAvailable drop ${AVAIL_DROP} MB, swap growth ${SWAP_GROWTH} MB, all inside budget"
 fi
 exit 0
