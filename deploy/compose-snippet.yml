@@ -15,6 +15,10 @@
     environment:
       LND4SU_PORT: "8080"
       LND4SU_DATA: /data
+      # Step 0b MEASURED on music-vm (2026-11-19): two concurrent pipelines
+      # peaked at 177 MB of judging cgroup memory, dropped MemAvailable 113 MB
+      # and grew swap by 32 MB on a box already using 2014/2046 MB of it.
+      # Spec rule: 2 workers only with NO swap growth. Ship 1.
       LND4SU_WORKERS: "1"
     volumes:
       - ./judge-data:/data
