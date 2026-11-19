@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
+
 	"strings"
 )
 
@@ -12,6 +12,7 @@ const (
 	configFile     = "/usr/local/etc/isolate"
 	cgroupPathFile = "/run/isolate/cgroup"
 	lockRoot       = "/run/isolate/locks"
+	cgroupMount    = "/sys/fs/cgroup"
 )
 
 // EnsureHost prepares the two files isolate needs before it will run at all:
@@ -53,49 +54,32 @@ func EnsureHost(boxRoot string) error {
 	return ensureCgroup()
 }
 
-// ensureCgroup makes a cgroup subtree that isolate may create leaf boxes in and
-// records its path for `cg_root = auto:`.
+// ensureCgroup points isolate at a cgroup that can host box leaves.
 //
-// isolate creates <parent>/box-<id> and writes memory.max there, which needs the
-// memory controller delegated to <parent>. cgroup v2 forbids enabling a
-// controller on a cgroup that still has processes in it, so our own processes
-// are moved into a child first.
+// isolate creates <parent>/box-<id> and writes memory.max into it, so <parent>
+// must have the memory controller enabled in its own subtree_control. cgroup v2
+// refuses that on any non-root cgroup that still holds processes, and this
+// container's cgroup always holds PID 1. So instead of draining it, a fresh
+// empty pool is created under the cgroup mount: the root is exempt from the
+// no-internal-process rule, and an empty child can enable the controller
+// unconditionally. Nothing above the pool is modified beyond that root write,
+// which is a no-op where memory is already delegated.
 func ensureCgroup() error {
 	root := os.Getenv("LND4SU_CGROUP_ROOT")
 	if root == "" {
-		data, err := os.ReadFile("/proc/self/cgroup")
-		if err != nil {
-			return fmt.Errorf("cgroup: %w", err)
+		if controllers := readTrim(filepath.Join(cgroupMount, "cgroup.controllers")); !hasWord(controllers, "memory") {
+			return fmt.Errorf("cgroup: no memory controller at %s (%q); container needs --privileged with a writable /sys/fs/cgroup", cgroupMount, controllers)
 		}
-		rel := ""
-		for _, line := range strings.Split(string(data), "\n") {
-			if v, ok := strings.CutPrefix(strings.TrimSpace(line), "0::"); ok {
-				rel = v
-				break
-			}
+		root = filepath.Join(cgroupMount, "lnd4su")
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			return fmt.Errorf("cgroup: create pool %s: %w", root, err)
 		}
-		root = filepath.Join("/sys/fs/cgroup", rel)
+		if err := enableMemory(cgroupMount); err != nil {
+			return err
+		}
 	}
-	if controllers := readTrim(filepath.Join(root, "cgroup.controllers")); controllers != "" &&
-		!strings.Contains(" "+controllers+" ", " memory ") {
-		return fmt.Errorf("cgroup: no memory controller at %s (controllers: %q); container needs --privileged with a writable /sys/fs/cgroup", root, controllers)
-	}
-
-	if !strings.Contains(" "+readTrim(filepath.Join(root, "cgroup.subtree_control"))+" ", " memory ") {
-		sink := filepath.Join(root, "lnd4su-procs")
-		if err := os.MkdirAll(sink, 0o755); err != nil {
-			return fmt.Errorf("cgroup: create %s: %w", sink, err)
-		}
-		self := strconv.Itoa(os.Getpid())
-		for _, pid := range strings.Fields(readTrim(filepath.Join(root, "cgroup.procs"))) {
-			if pid == self {
-				continue
-			}
-			_ = os.WriteFile(filepath.Join(sink, "cgroup.procs"), []byte(pid+"\n"), 0o644)
-		}
-		if err := os.WriteFile(filepath.Join(root, "cgroup.subtree_control"), []byte("+memory\n"), 0o644); err != nil {
-			return fmt.Errorf("cgroup: delegate memory at %s: %w", root, err)
-		}
+	if err := enableMemory(root); err != nil {
+		return err
 	}
 
 	tmp := cgroupPathFile + ".tmp"
@@ -111,4 +95,22 @@ func readTrim(path string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(b))
+}
+
+func hasWord(list, word string) bool {
+	return strings.Contains(" "+list+" ", " "+word+" ")
+}
+
+// enableMemory turns on the memory controller for parent's children. Safe to
+// call on the cgroup root (already delegated there in practice) and on an empty
+// pool cgroup; it fails on a cgroup that still holds processes, which is exactly
+// why the pool exists.
+func enableMemory(parent string) error {
+	if hasWord(readTrim(filepath.Join(parent, "cgroup.subtree_control")), "memory") {
+		return nil
+	}
+	if err := os.WriteFile(filepath.Join(parent, "cgroup.subtree_control"), []byte("+memory\n"), 0o644); err != nil {
+		return fmt.Errorf("cgroup: delegate memory at %s: %w", parent, err)
+	}
+	return nil
 }

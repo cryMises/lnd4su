@@ -73,22 +73,31 @@ mkdir -p /run/isolate/locks "$BOX_ROOT"
 if [ -n "${LND4SU_CGROUP_ROOT:-}" ]; then
     CG_PATH=$LND4SU_CGROUP_ROOT
 else
-    REL=$(awk -F: '$1 == "0" {print $3; exit}' /proc/self/cgroup 2>/dev/null)
-    CG_PATH="/sys/fs/cgroup${REL}"
+    CG_PATH=/sys/fs/cgroup/lnd4su
 fi
 say "cgroup path: $CG_PATH"
-if [ ! -w "$CG_PATH" ]; then
-    say "ERROR: $CG_PATH is not writable; the container needs --privileged with /sys/fs/cgroup mounted rw"
+if [ ! -w /sys/fs/cgroup ]; then
+    say "ERROR: /sys/fs/cgroup is not writable; the container needs --privileged with it mounted rw"
 fi
-# cgroup v2 forbids enabling a controller on a cgroup that has processes in
-# it, so move this container's processes into a child first.
-mkdir -p "$CG_PATH/lnd4su-procs"
-for p in $(cat "$CG_PATH/cgroup.procs" 2>/dev/null); do
-    [ "$p" = "$$" ] || echo "$p" > "$CG_PATH/lnd4su-procs/cgroup.procs" 2>/dev/null
-done
-echo "+memory" > "$CG_PATH/cgroup.subtree_control" 2>/dev/null || say "WARN: could not enable memory on $CG_PATH/cgroup.subtree_control"
+# isolate writes <parent>/box-<id>/memory.max, so <parent> must have the memory
+# controller enabled for its children. cgroup v2 refuses that on a cgroup that
+# still holds processes, and this container's cgroup always holds PID 1 — so use
+# a fresh empty pool under the cgroup mount instead. The root is exempt from the
+# no-internal-process rule and the pool starts with no processes at all.
+mkdir -p "$CG_PATH"
+enable_mem() {
+    local p="$1"
+    grep -qw memory "$p/cgroup.subtree_control" 2>/dev/null && return 0
+    if ! echo "+memory" > "$p/cgroup.subtree_control" 2>/dev/null; then
+        say "ERROR: cannot enable memory on $p/cgroup.subtree_control"
+        return 1
+    fi
+}
+enable_mem /sys/fs/cgroup || true
+enable_mem "$CG_PATH" || true
 printf '%s\n' "$CG_PATH" > /run/isolate/cgroup
 say "cgroup path file /run/isolate/cgroup -> $CG_PATH"
+say "memory.max under pool: $(cat "$CG_PATH/memory.max" 2>/dev/null || echo MISSING)"
 
 # --- one case through isolate ----------------------------------------------
 # $1 = expected verdict (AC|WA|TLE|MLE|RE|CE), $2 = file in /probe/cases
