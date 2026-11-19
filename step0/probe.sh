@@ -140,28 +140,37 @@ run_case() (
 
     cd "$box" || { fail "$v" - - "cannot enter box dir"; exit 1; }
 
-    # one-shot self-diagnosis: what does the sandbox actually see? Everything
-    # (stdout+stderr) folded into smoke.out so nothing is lost.
+    # One-shot self-test with NO redirection at all: everything the sandbox
+    # prints lands on this console, and isolate's own complaints are kept too.
+    # This must name the cause in a single run -- no more guessing.
     if [ ! -f /tmp/step0-diag-dumped ]; then
-        isolate --cg --box-id="$BOX_ID" --silent \
+        say "--- self-test 1: does /bin/sh run in the box? ---"
+        isolate --cg --box-id="$BOX_ID" \
+            --time=10 --wall-time=20 --mem=1048576 --processes=64 \
+            --env=PATH=/usr/local/bin:/usr/bin:/bin \
+            --run -- /bin/sh -c 'echo SANDBOX-ALIVE; id; pwd; echo PATH=$PATH; ls -l /box; echo REDIRECT-OK > /box/redir.txt; echo WROTE' 2>&1
+        say "self-test 1 rc=$?"
+        say "redir.txt content: $(cat "$box/redir.txt" 2>&1)"
+        say "--- isolate check-config ---"
+        isolate --check-config 2>&1 | head -20
+        say "--- end check-config ---"
+
+        # real source is already in /box/main.c; compile it with no redirection
+        say "--- self-test 2: bare gcc, output straight to console ---"
+        isolate --cg --box-id="$BOX_ID" \
             --time=10 --wall-time=20 --mem=1048576 --processes=64 --fsize=16384 \
             --env=PATH=/usr/local/bin:/usr/bin:/bin \
-            --meta="$BOX_ROOT/$BOX_ID/smoke.meta" --stderr-to-stdout \
-            --stdout=smoke.out --run -- /bin/sh -c '
-                echo "pwd=$(pwd) id=$(id -u) PATH=$PATH"
-                ls -l /usr/bin/gcc /usr/bin/cc1 2>&1 | head -3
-                ls /usr/lib/gcc/*/*/ 2>&1 | head -5
-                echo "--- gcc --version ---"
-                gcc --version 2>&1 | head -2
-                echo "--- shrink test ---"
-                printf "int main(void){return 0;}\n" > /box/t.c
-                gcc -O2 -std=c17 -o /box/t /box/t.c 2>&1 | head -20
-                echo "compile rc=$?"
-                ls -l /box 2>&1
-            ' >/dev/null 2>&1
-        say "--- sandbox diagnosis (status=$(meta "$BOX_ROOT/$BOX_ID/smoke.meta" status) exit=$(meta "$BOX_ROOT/$BOX_ID/smoke.meta" exitcode)) ---"
-        head -c 2500 "$box/smoke.out" 2>/dev/null
-        say "--- end diagnosis ---"
+            --meta="$BOX_ROOT/$BOX_ID/smoke.meta" \
+            --run -- /usr/bin/gcc -O2 -std=c17 -o prog main.c 2>&1
+        say "self-test 2 rc=$?"
+        say "--- self-test 2 meta ---"
+        cat "$BOX_ROOT/$BOX_ID/smoke.meta" 2>/dev/null
+        say "--- host view of $box ---"
+        ls -la "$box" 2>/dev/null
+        say "--- which gcc on the host ---"
+        ls -l /usr/bin/gcc /usr/bin/cc1 2>&1
+        command -v gcc cc1 2>&1
+        say "--- end self-test ---"
         : > /tmp/step0-diag-dumped
     fi
 
