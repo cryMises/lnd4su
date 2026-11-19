@@ -1,22 +1,27 @@
 {{define "me.html"}}{{template "head" .}}
-<h1>Akun Saya — {{.Session.Username}}</h1>
-<p class="meta">
-  {{len .Stats.Solved}} soal benar · {{.Stats.Attempted}} soal dicoba ·
-  {{.Stats.Subs}} submission ({{.Stats.ACSubs}} benar)
-</p>
+<div class="page-head">
+  <h1>Akun Saya — {{.Session.Username}}</h1>
+  <p class="meta">
+    {{len .Stats.Solved}} soal benar · {{.Stats.Attempted}} soal dicoba ·
+    {{.Stats.Subs}} submission ({{.Stats.ACSubs}} benar)
+  </p>
+</div>
 
-<h2>Soal yang Sudah Benar</h2>
+<div class="card">
+<h2 class="section-title">Soal yang Sudah Benar</h2>
 {{if not .Stats.Solved}}<p class="empty">Belum ada. Ayo coba satu soal.</p>{{else}}
-<ul class="problems">
+<ul class="problems solved-list">
   {{range .Stats.Solved}}
   <li><a class="title" href="/p/{{.Slug}}">{{.Title}}</a></li>
   {{end}}
 </ul>
 {{end}}
+</div>
 
-<h2>Riwayat Submission</h2>
+<div class="card">
+<h2 class="section-title">Riwayat Submission</h2>
 {{if not .Subs}}<p class="empty">Belum ada submission.</p>{{else}}
-<table>
+<table class="stacked stacked-history">
   <tr><th>#</th><th>Soal</th><th>Bahasa</th><th>Hasil</th><th>Skor</th><th>Waktu</th></tr>
   {{range .Subs}}
   <tr>
@@ -30,4 +35,5 @@
   {{end}}
 </table>
 {{end}}
+</div>
 {{template "foot" .}}{{end}}

@@ -123,6 +123,13 @@ func TestPagesRender(t *testing.T) {
 			t.Errorf("index missing %q", want)
 		}
 	}
+	// PWA wiring in the shared head, and the dark-mode toggle.
+	for _, want := range []string{`rel="manifest"`, `name="theme-color"`, `apple-touch-icon`,
+		`id="theme-toggle"`, `lnd4su-theme`, `/sw.js`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("index head missing %q", want)
+		}
+	}
 
 	if code, body = get("/login"); code != 200 || !strings.Contains(body, "Masuk") {
 		t.Errorf("login: %d", code)
@@ -131,6 +138,44 @@ func TestPagesRender(t *testing.T) {
 	// The stylesheet is embedded; a wrong embed path would 404 silently in prod.
 	if code, body = get("/static/style.css"); code != 200 || !strings.Contains(body, "--accent") {
 		t.Errorf("static css: %d (len %d)", code, len(body))
+	}
+
+	// PWA: the manifest and the service worker must be served from the root
+	// with the right types, or Chrome will not offer to install the app.
+	for _, tc := range []struct{ path, wantType, wantBody string }{
+		{"/manifest.json", "application/manifest+json", `"short_name": "LND4SU"`},
+		{"/sw.js", "application/javascript", "addEventListener(\"fetch\""},
+	} {
+		resp, err := client.Get(srv.URL + tc.path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", tc.path, err)
+		}
+		buf := &strings.Builder{}
+		if _, err := io.Copy(buf, resp.Body); err != nil {
+			t.Fatalf("read %s: %v", tc.path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Errorf("%s: %d", tc.path, resp.StatusCode)
+		}
+		if got := resp.Header.Get("Content-Type"); got != tc.wantType {
+			t.Errorf("%s content type: %q, want %q", tc.path, got, tc.wantType)
+		}
+		if !strings.Contains(buf.String(), tc.wantBody) {
+			t.Errorf("%s body missing %q", tc.path, tc.wantBody)
+		}
+	}
+	if code, _ = get("/static/icons/icon-192.png"); code != 200 {
+		t.Errorf("icon-192: %d", code)
+	}
+	// Manifest icons must be served as image/png or installability fails.
+	if resp, err := client.Get(srv.URL + "/static/icons/icon-512.png"); err != nil {
+		t.Fatalf("GET icon-512: %v", err)
+	} else {
+		resp.Body.Close()
+		if got := resp.Header.Get("Content-Type"); got != "image/png" {
+			t.Errorf("icon content type: %q, want image/png", got)
+		}
 	}
 
 	// A problem without a PDF must render its placeholder, with the forms

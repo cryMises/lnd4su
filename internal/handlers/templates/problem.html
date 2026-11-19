@@ -1,92 +1,118 @@
 {{define "problem.html"}}{{template "head" .}}
-<h1>{{.P.Title}}</h1>
-<p class="meta">
-  {{.P.Difficulty}} · batas {{.P.TimeLimitMS}} ms / {{.P.MemoryLimitKB}} KB
-  · {{.SolvedCount}} orang benar
-  {{if .P.Tags}} · {{.P.Tags}}{{end}}
-</p>
-{{if .P.WikiPageID}}<p><a href="{{wikiPageURL .P.WikiPageID}}">← Kembali ke materi</a></p>{{end}}
+<div class="page-head">
+  <h1>{{.P.Title}}</h1>
+  <p class="meta">
+    {{.P.Difficulty}} · batas {{.P.TimeLimitMS}} ms / {{.P.MemoryLimitKB}} KB
+    · {{.SolvedCount}} orang benar
+    {{if .P.Tags}} · {{.P.Tags}}{{end}}
+  </p>
+  {{if .P.WikiPageID}}<p class="backlink"><a href="{{wikiPageURL .P.WikiPageID}}">← Kembali ke materi</a></p>{{end}}
+</div>
 
 {{if .P.HasPDF}}
-  <iframe class="pdf" src="/p/{{.P.Slug}}/statement.pdf" title="Pernyataan soal"></iframe>
-  <p class="hint"><a href="/p/{{.P.Slug}}/statement.pdf">Buka PDF di tab baru</a></p>
+  <div class="card pdf-card">
+    <iframe class="pdf" src="/p/{{.P.Slug}}/statement.pdf" title="Pernyataan soal"></iframe>
+    <p class="hint"><a href="/p/{{.P.Slug}}/statement.pdf">Buka PDF di tab baru</a></p>
+  </div>
 {{else}}
   <p class="error">Soal ini belum punya berkas PDF. Menunggu admin mengunggah pernyataan soal — belum bisa disubmit.</p>
 {{end}}
 
 {{if .P.Samples}}
-<h2>Contoh</h2>
-{{range .P.Samples}}
-  <p class="hint">Masukan</p><pre>{{.Input}}</pre>
-  <p class="hint">Keluaran</p><pre>{{.Output}}</pre>
-{{end}}
+<div class="card">
+  <h2 class="section-title">Contoh</h2>
+  {{range .P.Samples}}
+  <div class="sample">
+    <p class="hint">Masukan</p><pre>{{.Input}}</pre>
+    <p class="hint">Keluaran</p><pre>{{.Output}}</pre>
+  </div>
+  {{end}}
+</div>
 {{end}}
 
 {{if .Run}}
-<h2>Hasil Coba</h2>
-{{if .Run.CompileOK}}
-  <p class="meta">{{.Run.TimeMS}} ms · {{.Run.MemKB}} KB{{if .Run.Truncated}} · keluaran dipotong 1 MB{{end}}</p>
-  <p class="hint">Keluaran</p><pre>{{if .Run.Stdout}}{{.Run.Stdout}}{{else}}(kosong){{end}}</pre>
-  {{if .Run.Stderr}}<p class="hint">Stderr</p><pre>{{.Run.Stderr}}</pre>{{end}}
-{{else}}
-  <p class="verdict v-ce">Compile Error</p>
-  <pre>{{.Run.Compile}}</pre>
-{{end}}
+<div class="card">
+  <h2 class="section-title">Hasil Coba</h2>
+  {{if .Run.CompileOK}}
+    <p class="meta">{{.Run.TimeMS}} ms · {{.Run.MemKB}} KB{{if .Run.Truncated}} · keluaran dipotong 1 MB{{end}}</p>
+    <p class="hint">Keluaran</p><pre>{{if .Run.Stdout}}{{.Run.Stdout}}{{else}}(kosong){{end}}</pre>
+    {{if .Run.Stderr}}<p class="hint">Stderr</p><pre>{{.Run.Stderr}}</pre>{{end}}
+  {{else}}
+    <p class="verdict v-ce">Compile Error</p>
+    <pre>{{.Run.Compile}}</pre>
+  {{end}}
+</div>
 {{end}}
 
-<h2>Kirim Jawaban</h2>
+<div class="card">
+<h2 class="section-title">Kirim Jawaban</h2>
 {{if .Session}}
-<form method="post" action="/p/{{.P.Slug}}/submit" id="submitform">
-  <div class="row">
-    <label for="language">Bahasa</label>
-    <select name="language" id="language">
-      <option value="c"{{if eq .PrevLang "c"}} selected{{end}}>C (gcc)</option>
-      <option value="cpp"{{if eq .PrevLang "cpp"}} selected{{end}}>C++ (g++)</option>
-    </select>
+<form method="post" action="/p/{{.P.Slug}}/submit" id="submitform" class="submit-form">
+  <div class="form-section">
+    <div class="row">
+      <div>
+        <label for="language">Bahasa</label>
+        <select name="language" id="language">
+          <option value="c"{{if eq .PrevLang "c"}} selected{{end}}>C (gcc)</option>
+          <option value="cpp"{{if eq .PrevLang "cpp"}} selected{{end}}>C++ (g++)</option>
+        </select>
+      </div>
+    </div>
   </div>
   <label for="source">Kode</label>
   <textarea class="code" name="source" id="source" spellcheck="false">{{.PrevSource}}</textarea>
-  <p><button type="submit"{{if not .P.HasPDF}} disabled{{end}}>Kirim</button></p>
+  <div class="form-actions"><button type="submit"{{if not .P.HasPDF}} disabled{{end}}>Kirim</button></div>
 </form>
 {{else}}
 <p class="empty">Masuk dengan akun wiki untuk mengirim jawaban. <a href="/login?next=/p/{{.P.Slug}}">Masuk</a></p>
 {{end}}
+</div>
 
 {{if .Mine}}
-<h2>Riwayat Saya</h2>
-<table>
-  <tr><th>#</th><th>Bahasa</th><th>Hasil</th><th>Skor</th><th>Waktu</th></tr>
-  {{range .Mine}}
-  <tr>
-    <td><a href="/s/{{.ID}}">#{{.ID}}</a></td>
-    <td>{{.Language}}</td>
-    <td><span class="verdict {{verdictClass .Verdict}}">{{if .Verdict}}{{.Verdict}}{{else}}{{.Status}}{{end}}</span></td>
-    <td>{{.Passed}}/10</td>
-    <td class="meta">{{fmtTime .CreatedAt}}</td>
-  </tr>
-  {{end}}
-</table>
+<div class="card">
+  <h2 class="section-title">Riwayat Saya</h2>
+  <div class="table-wrap">
+  <table class="stacked stacked-mine">
+    <tr><th>#</th><th>Bahasa</th><th>Hasil</th><th>Skor</th><th>Waktu</th></tr>
+    {{range .Mine}}
+    <tr>
+      <td><a href="/s/{{.ID}}">#{{.ID}}</a></td>
+      <td>{{.Language}}</td>
+      <td><span class="verdict {{verdictClass .Verdict}}">{{if .Verdict}}{{.Verdict}}{{else}}{{.Status}}{{end}}</span></td>
+      <td>{{.Passed}}/10</td>
+      <td class="meta">{{fmtTime .CreatedAt}}</td>
+    </tr>
+    {{end}}
+  </table>
+  </div>
+</div>
 {{end}}
 
-<h2>Coba Kode (tanpa dinilai)</h2>
+<div class="card">
+<h2 class="section-title">Coba Kode (tanpa dinilai)</h2>
 {{if .Session}}
-<form method="post" action="/p/{{.P.Slug}}/run">
-  <div class="row">
-    <label for="runlang">Bahasa</label>
-    <select name="language" id="runlang">
-      <option value="c"{{if eq .PrevLang "c"}} selected{{end}}>C (gcc)</option>
-      <option value="cpp"{{if eq .PrevLang "cpp"}} selected{{end}}>C++ (g++)</option>
-    </select>
+<form method="post" action="/p/{{.P.Slug}}/run" class="run-form">
+  <div class="form-section">
+    <div class="row">
+      <div>
+        <label for="runlang">Bahasa</label>
+        <select name="language" id="runlang">
+          <option value="c"{{if eq .PrevLang "c"}} selected{{end}}>C (gcc)</option>
+          <option value="cpp"{{if eq .PrevLang "cpp"}} selected{{end}}>C++ (g++)</option>
+        </select>
+      </div>
+    </div>
   </div>
   <label for="runsource">Kode</label>
   <textarea class="code" name="source" id="runsource" spellcheck="false">{{.PrevSource}}</textarea>
   <label for="stdin">Masukan sendiri</label>
   <textarea class="stdin" name="stdin" id="stdin" spellcheck="false">{{.Stdin}}</textarea>
-  <p><button type="submit">Coba</button></p>
+  <div class="form-actions"><button type="submit">Coba</button></div>
 </form>
 {{else}}
 <p class="empty">Masuk untuk memakai mode coba.</p>
 {{end}}
+</div>
 <script>
 // Tab in the code boxes inserts two spaces instead of leaving the field.
 document.querySelectorAll('textarea.code').forEach(function (ta) {

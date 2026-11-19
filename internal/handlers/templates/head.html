@@ -4,7 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} — LND4SU</title>
+<script>
+// Set the theme before first paint so there is no flash of the wrong colours.
+(function(){try{var t=localStorage.getItem("lnd4su-theme");if(t){document.documentElement.setAttribute("data-theme",t);}}catch(e){}})();
+</script>
 <link rel="stylesheet" href="/static/style.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#fbfaf7">
+<meta name="description" content="Latihan ngoding darurat 4 soal ujian.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="LND4SU">
+<link rel="apple-touch-icon" href="/static/icons/icon-180.png">
+<link rel="icon" href="/static/icons/icon-192.png" sizes="192x192" type="image/png">
 </head>
 <body>
 <header>
@@ -20,6 +32,7 @@
     {{else}}
       <a href="/login">Masuk</a>
     {{end}}
+    <button class="theme-toggle" id="theme-toggle" type="button">Gelap</button>
   </nav>
 </header>
 <main>
@@ -32,5 +45,35 @@
 <footer>
   <a href="{{.WikiURL}}">Kembali ke wiki DoItTill</a>
 </footer>
+<script>
+(function(){
+  var b=document.getElementById("theme-toggle");
+  var mq=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)");
+  function cur(){
+    var t=document.documentElement.getAttribute("data-theme");
+    if(t)return t;
+    return mq&&mq.matches?"dark":"light";
+  }
+  function paint(){
+    if(!b)return;
+    b.textContent=cur()==="dark"?"Terang":"Gelap";
+    var meta=document.querySelector('meta[name="theme-color"]:not([media])');
+    if(meta)meta.setAttribute("content",cur()==="dark"?"#17150f":"#fbfaf7");
+  }
+  if(b){b.addEventListener("click",function(){
+    var next=cur()==="dark"?"light":"dark";
+    document.documentElement.setAttribute("data-theme",next);
+    try{localStorage.setItem("lnd4su-theme",next);}catch(e){}
+    paint();
+  });}
+  if(mq&&mq.addEventListener)mq.addEventListener("change",paint);
+  paint();
+})();
+if("serviceWorker" in navigator){
+  window.addEventListener("load",function(){
+    navigator.serviceWorker.register("/sw.js").catch(function(){});
+  });
+}
+</script>
 </body>
 </html>{{end}}

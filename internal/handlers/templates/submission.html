@@ -1,41 +1,49 @@
 {{define "submission.html"}}{{template "head" .}}
-<h1>Submission #{{.Sub.ID}}</h1>
-<p class="meta">
-  <a href="/p/{{.P.Slug}}">{{.P.Title}}</a> ·
-  {{.Sub.Language}} · {{fmtTime .Sub.CreatedAt}}
-</p>
-<p>
+<div class="page-head">
+  <h1>Submission #{{.Sub.ID}}</h1>
+  <p class="meta">
+    <a href="/p/{{.P.Slug}}">{{.P.Title}}</a> ·
+    {{.Sub.Language}} · {{fmtTime .Sub.CreatedAt}}
+  </p>
+</div>
+
+<div class="card verdict-card">
+<p class="verdict-banner">
   {{if eq .Sub.Status "done"}}
     <span class="verdict {{verdictClass .Sub.Verdict}}">{{.Sub.Verdict}}</span>
-    · skor {{.Sub.PassedCount}}/10
+    <span class="score">· skor {{.Sub.PassedCount}}/10</span>
   {{else}}
-    <span id="pending">Sedang {{if eq .Sub.Status "queued"}}menunggu giliran{{else}}dinilai{{end}}…</span>
+    <span class="pending" id="pending">Sedang {{if eq .Sub.Status "queued"}}menunggu giliran{{else}}dinilai{{end}}…</span>
   {{end}}
 </p>
 {{if .Subtasks}}
-<p class="meta">Subtask:
+<p class="meta subtasks">Subtask:
   {{range .Subtasks}}<span class="pill">{{.Label}}: {{.Pass}}/{{.Total}}</span> {{end}}
 </p>
 {{end}}
+</div>
 
 {{if .Sub.CompileLog}}
-<h2>Keluaran Compiler</h2>
-<pre>{{.Sub.CompileLog}}</pre>
+<div class="card">
+  <h2 class="section-title">Keluaran Compiler</h2>
+  <pre>{{.Sub.CompileLog}}</pre>
+</div>
 {{end}}
 
 {{if eq .Sub.Status "done"}}
-<h2>Rincian per Test</h2>
-<table>
+<div class="card">
+<h2 class="section-title">Rincian per Test</h2>
+<table class="cases">
   <tr><th>#</th><th>Hasil</th><th>Waktu</th><th>Memori</th></tr>
   {{range .Sub.Cases}}
-  <tr>
+  <tr class="case-row">
     <td>{{.Position}}</td>
     <td><span class="verdict {{verdictClass .Verdict}}">{{.Verdict}}</span></td>
     <td>{{.TimeMS}} ms</td>
     <td>{{.MemoryKB}} KB</td>
   </tr>
   {{if ne .Verdict "AC"}}
-  <tr><td></td><td colspan="3" class="detail">
+  <tr class="detail-row"><td></td><td colspan="3" class="detail">
     <details>
       <summary>Lihat masukan / yang diharapkan / keluaran program</summary>
       <p class="hint">Masukan</p><pre>{{.Stdin}}</pre>
@@ -46,16 +54,21 @@
   {{end}}
   {{end}}
 </table>
+</div>
 {{end}}
 
 {{if .Session.IsAdmin}}
+<div class="card">
 <form method="post" action="/admin/submissions/{{.Sub.ID}}/rejudge">
-  <p><button type="submit">Nilai ulang submission ini</button></p>
+  <div class="form-actions"><button type="submit">Nilai ulang submission ini</button></div>
 </form>
+</div>
 {{end}}
 
-<h2>Kode</h2>
+<div class="card">
+<h2 class="section-title">Kode</h2>
 <pre>{{.Sub.Source}}</pre>
+</div>
 {{if ne .Sub.Status "done"}}
 <script>
 (function poll(){

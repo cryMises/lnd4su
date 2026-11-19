@@ -1,14 +1,18 @@
 {{define "login.html"}}{{template "head" .}}
-<h1>Masuk</h1>
+<div class="loginwrap">
 <div class="loginbox">
-<p class="hint">Pakai akun wiki DoItTill yang sama. Tidak ada pendaftaran di sini — akun dibuat di wiki.</p>
-<form method="post" action="/login">
-  <input type="hidden" name="next" value="{{.Next}}">
-  <label for="username">Nama pengguna</label>
-  <input type="text" id="username" name="username" autocomplete="username" autocapitalize="none" required>
-  <label for="password">Kata sandi</label>
-  <input type="password" id="password" name="password" autocomplete="current-password" required>
-  <button type="submit">Masuk</button>
-</form>
+  <div class="card">
+    <h1>Masuk</h1>
+    <p class="hint">Pakai akun wiki DoItTill yang sama. Tidak ada pendaftaran di sini — akun dibuat di wiki.</p>
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="{{.Next}}">
+      <label for="username">Nama pengguna</label>
+      <input type="text" id="username" name="username" autocomplete="username" autocapitalize="none" required>
+      <label for="password">Kata sandi</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+      <button type="submit">Masuk</button>
+    </form>
+  </div>
+</div>
 </div>
 {{template "foot" .}}{{end}}

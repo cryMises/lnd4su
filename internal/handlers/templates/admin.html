@@ -1,44 +1,51 @@
 {{define "admin.html"}}{{template "head" .}}
-<h1>Admin</h1>
-<p><a href="/admin/problems/new">+ Soal Baru</a></p>
+<div class="page-head with-action">
+  <h1>Admin</h1>
+  <p><a class="btn-link" href="/admin/problems/new">+ Soal Baru</a></p>
+</div>
 
-<h2>Soal</h2>
+<div class="card">
+<h2 class="section-title">Soal</h2>
 {{if not .Problems}}<p class="empty">Belum ada soal.</p>{{else}}
-<table>
+<table class="stacked stacked-admin">
   <tr><th>Judul</th><th>Slug</th><th>PDF</th><th></th></tr>
   {{range .Problems}}
   <tr>
     <td><a href="/p/{{.Slug}}">{{.Title}}</a></td>
     <td class="meta">{{.Slug}}</td>
     <td>{{if .HasPDF}}ada{{else}}<span class="verdict v-wa">belum</span>{{end}}</td>
-    <td>
-      <a href="/admin/problems/{{.ID}}/edit">Ubah</a> ·
-      <a href="/admin/problems/{{.ID}}/export">Ekspor</a> ·
-      <form method="post" action="/admin/problems/{{.ID}}/rejudge" style="display:inline"><button class="link">Nilai ulang semua</button></form> ·
+    <td class="admin-actions">
+      <a href="/admin/problems/{{.ID}}/edit">Ubah</a>
+      <a href="/admin/problems/{{.ID}}/export">Ekspor</a>
+      <form method="post" action="/admin/problems/{{.ID}}/rejudge" style="display:inline"><button class="link">Nilai ulang semua</button></form>
       <form method="post" action="/admin/problems/{{.ID}}/delete" style="display:inline" onsubmit="return confirm('Hapus soal ini beserta semua submission-nya?')"><button class="link">Hapus</button></form>
     </td>
   </tr>
   {{end}}
 </table>
 {{end}}
+</div>
 
-<h2>Impor Soal</h2>
+<div class="card">
+<h2 class="section-title">Impor Soal</h2>
 <form method="post" action="/admin/problems/import" enctype="multipart/form-data">
   <label for="importfile">Berkas ZIP (problem.json + statement.pdf) atau problem.json saja</label>
   <input type="file" id="importfile" name="file" accept=".zip,.json" required>
-  <p><button type="submit">Impor</button></p>
+  <div class="form-actions"><button type="submit">Impor</button></div>
 </form>
+</div>
 
-<h2>Blokir Pengguna (hanya untuk penilaian)</h2>
+<div class="card">
+<h2 class="section-title">Blokir Pengguna (hanya untuk penilaian)</h2>
 <form method="post" action="/admin/users/block">
   <div class="row">
     <div><label for="blockuser">Nama pengguna wiki</label><input type="text" id="blockuser" name="username" required></div>
     <div><label for="blockreason">Alasan</label><input type="text" id="blockreason" name="reason"></div>
   </div>
-  <p><button type="submit">Blokir</button></p>
+  <div class="form-actions"><button type="submit">Blokir</button></div>
 </form>
 {{if .Blocked}}
-<table>
+<table class="stacked stacked-blocked">
   <tr><th>Pengguna</th><th>Alasan</th><th>Oleh</th><th>Waktu</th><th></th></tr>
   {{range .Blocked}}
   <tr>
@@ -51,4 +58,5 @@
   {{end}}
 </table>
 {{end}}
+</div>
 {{template "foot" .}}{{end}}

@@ -179,7 +179,28 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /admin/users/block", a.adminBlock)
 	mux.HandleFunc("POST /admin/users/unblock", a.adminUnblock)
 	mux.Handle("GET /static/", http.FileServer(http.FS(staticFS)))
+	// The manifest and the service worker must be served from the root: /sw.js
+	// has to be at the root or its scope would not cover the app.
+	mux.HandleFunc("GET /manifest.json", func(w http.ResponseWriter, r *http.Request) {
+		serveEmbedded(w, "static/manifest.json", "application/manifest+json")
+	})
+	mux.HandleFunc("GET /sw.js", func(w http.ResponseWriter, r *http.Request) {
+		// no-store so a redeploy actually reaches the browser.
+		w.Header().Set("Cache-Control", "no-store")
+		serveEmbedded(w, "static/sw.js", "application/javascript")
+	})
 	return logRequests(mux)
+}
+
+// serveEmbedded writes one file straight out of staticFS with a fixed type.
+func serveEmbedded(w http.ResponseWriter, name, ctype string) {
+	b, err := staticFS.ReadFile(name)
+	if err != nil {
+		http.NotFound(w, nil)
+		return
+	}
+	w.Header().Set("Content-Type", ctype)
+	w.Write(b)
 }
 
 func logRequests(h http.Handler) http.Handler {

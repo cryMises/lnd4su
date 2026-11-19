@@ -1,21 +1,31 @@
 {{define "index.html"}}{{template "head" .}}
-<h1>Daftar Soal</h1>
+<div class="page-head">
+  <h1>Daftar Soal</h1>
+</div>
 {{if not .Problems}}
-  <p class="empty">Belum ada soal. Admin dapat menambah soal dari halaman Admin.</p>
+  <div class="card empty-card">
+    <p class="empty">Belum ada soal. Admin dapat menambah soal dari halaman Admin.</p>
+  </div>
 {{else}}
 <ul class="problems">
   {{range .Problems}}
   <li>
-    <a class="title" href="/p/{{.Slug}}">{{.Title}}</a>
-    {{if $.Session}}
-      {{if .Solved}}<span class="solved" title="sudah benar">✓ benar</span>
-      {{else if .Attempted}}<span class="attempted">sedang dicoba</span>{{end}}
-    {{end}}
-    <span class="pill">{{.Difficulty}}</span>
-    <span class="meta">{{.TimeLimitMS}} ms · {{.MemoryLimitKB}} KB</span>
-    {{if .Tags}}<span class="tags">{{.Tags}}</span>{{end}}
-    <span class="meta">{{.SolvedCount}} orang benar</span>
-    {{if not .HasPDF}}<span class="pill">PDF belum ada</span>{{end}}
+    <article class="card problem-card">
+      <a class="title" href="/p/{{.Slug}}">{{.Title}}</a>
+      <div class="problem-meta">
+        <span class="pill">{{.Difficulty}}</span>
+        {{if $.Session}}
+          {{if .Solved}}<span class="solved" title="sudah benar">✓ benar</span>
+          {{else if .Attempted}}<span class="attempted">sedang dicoba</span>{{end}}
+        {{end}}
+        {{if not .HasPDF}}<span class="pill">PDF belum ada</span>{{end}}
+        {{if .Tags}}<span class="tags">{{.Tags}}</span>{{end}}
+      </div>
+      <div class="problem-meta">
+        <span class="meta">{{.TimeLimitMS}} ms · {{.MemoryLimitKB}} KB</span>
+        <span class="meta">{{.SolvedCount}} orang benar</span>
+      </div>
+    </article>
   </li>
   {{end}}
 </ul>
