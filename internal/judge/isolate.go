@@ -236,6 +236,12 @@ func (b *Box) Compile(ctx context.Context, lang string, source []byte, filename 
 	if err := b.Write(filename, source, 0o644); err != nil {
 		return false, "internal: cannot stage source: " + err.Error()
 	}
+	// isolate opens --stdin=input.txt for every run, including compiles,
+	// and fails with XX when the file is missing. Nothing has staged it
+	// yet at compile time, so give it an empty one; gcc never reads stdin.
+	if err := b.Write("input.txt", []byte{}, 0o644); err != nil {
+		return false, "internal: cannot stage stdin: " + err.Error()
+	}
 	compiler, std := "/usr/bin/gcc", "-std=c17"
 	if lang == "cpp" {
 		compiler, std = "/usr/bin/g++", "-std=c++17"
