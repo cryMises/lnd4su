@@ -140,6 +140,31 @@ run_case() (
 
     cd "$box" || { fail "$v" - - "cannot enter box dir"; exit 1; }
 
+    # one-shot self-diagnosis: what does the sandbox actually see? Everything
+    # (stdout+stderr) folded into smoke.out so nothing is lost.
+    if [ ! -f /tmp/step0-diag-dumped ]; then
+        isolate --cg --box-id="$BOX_ID" --silent \
+            --time=10 --wall-time=20 --mem=1048576 --processes=64 --fsize=16384 \
+            --env=PATH=/usr/local/bin:/usr/bin:/bin \
+            --meta="$BOX_ROOT/$BOX_ID/smoke.meta" --stderr-to-stdout \
+            --stdout=smoke.out --run -- /bin/sh -c '
+                echo "pwd=$(pwd) id=$(id -u) PATH=$PATH"
+                ls -l /usr/bin/gcc /usr/bin/cc1 2>&1 | head -3
+                ls /usr/lib/gcc/*/*/ 2>&1 | head -5
+                echo "--- gcc --version ---"
+                gcc --version 2>&1 | head -2
+                echo "--- shrink test ---"
+                printf "int main(void){return 0;}\n" > /box/t.c
+                gcc -O2 -std=c17 -o /box/t /box/t.c 2>&1 | head -20
+                echo "compile rc=$?"
+                ls -l /box 2>&1
+            ' >/dev/null 2>&1
+        say "--- sandbox diagnosis (status=$(meta "$BOX_ROOT/$BOX_ID/smoke.meta" status) exit=$(meta "$BOX_ROOT/$BOX_ID/smoke.meta" exitcode)) ---"
+        head -c 2500 "$box/smoke.out" 2>/dev/null
+        say "--- end diagnosis ---"
+        : > /tmp/step0-diag-dumped
+    fi
+
     # compile INSIDE the sandbox; the CE case must fail right here
     # --meta is opened by isolate on the host (before the chroot), so it needs
     # an absolute path; --stderr is opened inside the box.
@@ -164,6 +189,8 @@ run_case() (
     fi
 
     if [ "$rc" -ne 0 ] || [ "$status" != OK ]; then
+        say "--- compile meta ---"
+        cat "$BOX_ROOT/$BOX_ID/compile.meta" 2>/dev/null
         say "--- compile.err ---"
         head -c 2000 compile.err 2>/dev/null
         say "--- end compile.err ---"
