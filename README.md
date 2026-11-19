@@ -88,3 +88,7 @@ HANDOFF.md        install guide and gating record for the deploying agent
 ## Why it exists
 
 Ready-made judges don't fit the box this runs on: DOMjudge needs amd64 images and a dedicated judgehost, HUSTOJ needs an empty 1 GB box of its own, and this VM is a 1 GB ARM64 machine already running nine other services. LND4SU is the minimal judge that fits — one worker, ~4 MiB idle — written for the DoItTill wiki's Algorithm and Programming course.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
