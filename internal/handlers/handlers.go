@@ -155,6 +155,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("GET /{$}", a.index)
 	mux.HandleFunc("GET /p/{slug}", a.problemPage)
 	mux.HandleFunc("GET /p/{slug}/statement.pdf", a.statementPDF)
+	mux.HandleFunc("GET /p/{slug}/pages/{file}", a.statementPageImage)
 	mux.HandleFunc("POST /p/{slug}/submit", a.submit)
 	mux.HandleFunc("POST /p/{slug}/run", a.runMode)
 	mux.HandleFunc("GET /s/{id}", a.submissionPage)
