@@ -22,7 +22,7 @@ RUN git clone --depth 1 https://github.com/ioi/isolate /tmp/isolate \
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        gcc g++ libc6-dev libcap2-bin libseccomp2 curl ca-certificates \
+        gcc g++ libc6-dev libcap2-bin libseccomp2 curl ca-certificates poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=app /out/lnd4su /usr/local/bin/lnd4su
