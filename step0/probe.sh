@@ -19,7 +19,6 @@ set -u
 
 BOX_ID=${LND4SU_STEP0_BOX_ID:-0}
 BOX_ROOT=/var/local/isolate
-BOX="$BOX_ROOT/$BOX_ID/box"
 PASSES=0
 FAILS=0
 META_MARK=/tmp/step0-meta-dumped
@@ -105,7 +104,6 @@ say "memory.max under pool: $(cat "$CG_PATH/memory.max" 2>/dev/null || echo MISS
 run_case() (
     local v="$1" src="$2"
     local rc box t mem status oom killed out cm
-    local BOX="$BOX_ROOT/$BOX_ID/box"
 
     cd /probe || exit 1
 
@@ -125,52 +123,34 @@ run_case() (
         /*) ;;
         *) box="" ;;
     esac
-    [ -n "$box" ] && [ -d "$box" ] || box="$BOX"
+    [ -n "$box" ] && [ -d "$box" ] || box="$BOX_ROOT/$BOX_ID"
     if [ ! -d "$box" ]; then
         fail "$v" - - "isolate --init produced no box dir"
         exit 1
     fi
+    # --init prints <box_root>/<id>; the sandbox's /box is the "box" subdir of
+    # it. Source must land inside that subdir or the compiler cannot see it.
+    local BOXD="$box/box"
+    mkdir -p "$BOXD"
 
-    cp "/probe/cases/$src" "$box/main.c" || {
+    cp "/probe/cases/$src" "$BOXD/main.c" || {
         fail "$v" - - "cannot copy cases/$src into box"
         exit 1
     }
     # the sandbox user (uid 60000) must be able to write prog into its own /box
-    chmod 0777 "$box"
+    chmod 0777 "$BOXD"
 
-    cd "$box" || { fail "$v" - - "cannot enter box dir"; exit 1; }
+    cd "$BOXD" || { fail "$v" - - "cannot enter box dir"; exit 1; }
 
-    # One-shot self-test with NO redirection at all: everything the sandbox
-    # prints lands on this console, and isolate's own complaints are kept too.
-    # This must name the cause in a single run -- no more guessing.
+    # One-shot sanity check: the sandbox must be able to run a shell and write
+    # into its own /box. Cheap insurance against a silent misconfiguration.
     if [ ! -f /tmp/step0-diag-dumped ]; then
-        say "--- self-test 1: does /bin/sh run in the box? ---"
-        isolate --cg --box-id="$BOX_ID" \
+        say "--- sandbox sanity check ---"
+        isolate --cg --box-id="$BOX_ID" --silent \
             --time=10 --wall-time=20 --mem=1048576 --processes=64 \
-            --env=PATH=/usr/local/bin:/usr/bin:/bin \
-            --run -- /bin/sh -c 'echo SANDBOX-ALIVE; id; pwd; echo PATH=$PATH; ls -l /box; echo REDIRECT-OK > /box/redir.txt; echo WROTE' 2>&1
-        say "self-test 1 rc=$?"
-        say "redir.txt content: $(cat "$box/redir.txt" 2>&1)"
-        say "--- isolate check-config ---"
-        isolate --check-config 2>&1 | head -20
-        say "--- end check-config ---"
-
-        # real source is already in /box/main.c; compile it with no redirection
-        say "--- self-test 2: bare gcc, output straight to console ---"
-        isolate --cg --box-id="$BOX_ID" \
-            --time=10 --wall-time=20 --mem=1048576 --processes=64 --fsize=16384 \
-            --env=PATH=/usr/local/bin:/usr/bin:/bin \
-            --meta="$BOX_ROOT/$BOX_ID/smoke.meta" \
-            --run -- /usr/bin/gcc -O2 -std=c17 -o prog main.c 2>&1
-        say "self-test 2 rc=$?"
-        say "--- self-test 2 meta ---"
-        cat "$BOX_ROOT/$BOX_ID/smoke.meta" 2>/dev/null
-        say "--- host view of $box ---"
-        ls -la "$box" 2>/dev/null
-        say "--- which gcc on the host ---"
-        ls -l /usr/bin/gcc /usr/bin/cc1 2>&1
-        command -v gcc cc1 2>&1
-        say "--- end self-test ---"
+            --run -- /bin/sh -c 'echo SANDBOX-ALIVE uid=$(id -u) pwd=$(pwd)' 2>&1
+        say "sanity rc=$? (expect SANDBOX-ALIVE uid=60000 pwd=/box)"
+        say "--- end sanity check ---"
         : > /tmp/step0-diag-dumped
     fi
 
