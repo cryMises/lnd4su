@@ -143,8 +143,11 @@ run_case() (
     # compile INSIDE the sandbox; the CE case must fail right here
     # --meta is opened by isolate on the host (before the chroot), so it needs
     # an absolute path; --stderr is opened inside the box.
+    # isolate starts the program with an almost empty environment, so gcc needs
+    # PATH to find cc1/as/ld.
     isolate --cg --box-id="$BOX_ID" --silent \
         --time=10 --wall-time=20 --mem=1048576 --processes=64 --fsize=16384 \
+        --env=PATH=/usr/local/bin:/usr/bin:/bin \
         --meta="$BOX_ROOT/$BOX_ID/compile.meta" --stderr=compile.err --run -- \
         /usr/bin/gcc -O2 -std=c17 -o prog main.c
     rc=$?
@@ -161,6 +164,9 @@ run_case() (
     fi
 
     if [ "$rc" -ne 0 ] || [ "$status" != OK ]; then
+        say "--- compile.err ---"
+        head -c 2000 compile.err 2>/dev/null
+        say "--- end compile.err ---"
         fail "$v" - - "compile failed (status=${status:-none} rc=$rc)"
         exit 1
     fi

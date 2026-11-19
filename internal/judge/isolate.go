@@ -15,6 +15,11 @@ import (
 
 const progName = "prog"
 
+// toolPath is the PATH handed to the sandboxed compiler. isolate starts
+// programs with an empty environment, so gcc would otherwise find neither cc1
+// nor as/ld (the latter live in /usr/bin on Debian).
+const toolPath = "/usr/local/bin:/usr/bin:/bin"
+
 // Box wraps one isolate box. isolate refuses concurrent use of the same box, so
 // every access is serialized by Mu; worker N owns box N.
 type Box struct {
@@ -171,7 +176,10 @@ func (b *Box) Run(ctx context.Context, spec RunSpec) (Meta, error) {
 		"--stderr=stderr.txt",
 	}
 	if spec.Compile {
-		args = append(args, "--processes=64")
+		// isolate starts the program with a nearly empty environment (it only
+		// sets LIBC_FATAL_STDERR_). gcc locates cc1/as/ld through PATH, so
+		// without this every compile dies with "error trying to exec 'as'".
+		args = append(args, "--processes=64", "--env=PATH="+toolPath)
 	}
 	if spec.ExtraTime > 0 {
 		args = append(args, "--extra-time="+strconv.FormatFloat(spec.ExtraTime, 'f', 3, 64))
@@ -237,6 +245,9 @@ func (b *Box) Compile(ctx context.Context, lang string, source []byte, filename 
 	if m.Status != "" || m.ExitCode == nil || *m.ExitCode != 0 {
 		if errOut == "" {
 			errOut = "compiler gagal tanpa pesan"
+			if m.Status != "" {
+				errOut += " (status=" + m.Status + ")"
+			}
 		}
 		if m.Status == "TO" {
 			errOut += "\n(compiler melebihi batas waktu)"
