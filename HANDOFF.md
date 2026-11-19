@@ -121,9 +121,9 @@ file and that file disagree, `lnd4su.md` wins — stop and ask.
 
 ### Repo and images
 
-- Repo: `github.com/cryMises/lnd4su`, **private**, branch `main`, HEAD `6048e78`.
-- App image: `ghcr.io/crymises/lnd4su:latest` (also `:sha-6048e78`).
-  Digest `sha256:3d6fe493c50fcf4b0aaf10af387347facf5caab1474c317aca352654ce98c2e3`.
+- Repo: `github.com/cryMises/lnd4su`, **private**, branch `main`, HEAD `4f90172`.
+- App image: `ghcr.io/crymises/lnd4su:latest` (also `:sha-4f90172`).
+  Digest `sha256:273b5cef62af406224f0639ba0d5943dccb4bac829004dffc5dc79b15c8008f8`.
   ARM64, 12.6 MB static Go binary; image 111.8 MB compressed.
 - GHCR packages are **public** — the box needs no registry auth. Verified by
   fetching a pull token and a manifest (HTTP 200) anonymously.
@@ -170,6 +170,7 @@ Do not re-discover these; they are why the gates took several rounds.
 | `--fsize=2048` applied to compiles | any C++ binary over 2 MB fails to link. Fixed with `--fsize=16384` for compiles. |
 | isolate writes **no** `status` key on clean exit | treating empty status as failure fails every successful compile. Empty status means OK. |
 | MLE unreachable when `--mem == --cg-mem` | `malloc` returns NULL → RE instead of an OOM kill. Fixed: `--mem` = 2× the limit as a backstop, `--cg-mem` = the real cap. |
+| `--stdin=input.txt` passed on compiles, file never staged | isolate's `setup_fds` `die`s on a missing stdin file → `status:XX` on every first compile in a fresh box. Fixed by writing an empty `input.txt` before compiling (gcc never reads stdin). |
 
 ### Known behaviour to watch (not a defect)
 
