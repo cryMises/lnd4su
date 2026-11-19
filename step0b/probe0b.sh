@@ -24,17 +24,22 @@ MAX_MB=${LND4SU_MEM_HEADROOM_MB:-200}   # spec: 200 MB headroom for the judge
 say() { printf '%s\n' "$*"; }
 meta() { awk -F: -v k="$2" '$1==k {print $2; exit}' "$1" 2>/dev/null; }
 
-# peak RSS of the whole cgroup tree, in MB (cgroup v2 memory.peak is bytes)
-tree_peak_mb() {
-    local total=0 f v
-    for f in "$CG_MOUNT/memory.peak" "$CG_PATH/memory.peak"; do
-        [ -r "$f" ] || continue
-        v=$(cat "$f" 2>/dev/null || echo 0)
-        case "$v" in ''|max) v=0 ;; esac
-        total=$(( total > v ? total : v ))
-    done
-    echo $(( total / 1024 / 1024 ))
+# Memory in use, in MB, for two cgroups:
+#   host  - <mount>/memory.current. With --cgroupns=host plus a bind-mounted
+#           /sys/fs/cgroup this is the HOST root, so it counts music-vm's other
+#           nine services too. That is the number the gate cares about: how much
+#           extra does judging add on top of everything already running.
+#   pool  - the judge's own cgroup pool, i.e. just the sandboxed work.
+# memory.peak is deliberately not used: it is cumulative since boot, so any
+# earlier run would poison the baseline.
+mb_of() {
+    local v
+    v=$(cat "$1" 2>/dev/null || echo 0)
+    case "$v" in ''|max) v=0 ;; esac
+    echo $(( v / 1024 / 1024 ))
 }
+host_mb() { mb_of "$CG_MOUNT/memory.current"; }
+pool_mb() { mb_of "$CG_PATH/memory.current"; }
 
 if [ "$(id -u)" != 0 ]; then
     say "FATAL: must run as root (isolate sandbox)"
@@ -70,8 +75,10 @@ enable_mem "$CG_PATH" || true
 printf '%s\n' "$CG_PATH" > /run/isolate/cgroup
 say "cgroup pool: $CG_PATH (memory.max=$(cat "$CG_PATH/memory.max" 2>/dev/null || echo MISSING))"
 
-BEFORE=$(tree_peak_mb)
-say "cgroup memory.peak before: ${BEFORE} MB"
+BEFORE_HOST=$(host_mb)
+BEFORE_POOL=$(pool_mb)
+say "host memory.current before: ${BEFORE_HOST} MB (whole box)"
+say "pool memory.current before: ${BEFORE_POOL} MB (judge only)"
 
 # One full pipeline: init -> compile a real C++ submission -> run it on 3 cases.
 # $1 = box id. Mirrors the app: compile 10 s / 512 MB, cases 1 s / 64 MB.
@@ -130,7 +137,7 @@ SAMPLES=/tmp/step0b.samples
 : > "$SAMPLES"
 (
     while :; do
-        printf '%s\n' "$(tree_peak_mb)" >> "$SAMPLES"
+        printf '%s\n' "$(tree_current_mb)" >> "$SAMPLES"
         sleep 0.2
     done
 ) &
@@ -150,14 +157,16 @@ wait $SAMPLER 2>/dev/null
 
 cat /tmp/w0.log /tmp/w1.log
 
-PEAK=$(sort -n "$SAMPLES" 2>/dev/null | tail -1)
-[ -n "$PEAK" ] || PEAK=0
+PEAK_HOST=$(awk '{print $1}' "$SAMPLES" 2>/dev/null | sort -n | tail -1)
+PEAK_POOL=$(awk '{print $2}' "$SAMPLES" 2>/dev/null | sort -n | tail -1)
+[ -n "${PEAK_HOST:-}" ] || PEAK_HOST=0
+[ -n "${PEAK_POOL:-}" ] || PEAK_POOL=0
 DUR=$(( (END - START) / 1000000 ))
 
 say "--- measurement ---"
 say "wall time for both pipelines: ${DUR} ms"
-say "cgroup memory.peak during the run: ${PEAK} MB"
-say "peak above the pre-run baseline: $(( PEAK - BEFORE )) MB"
+say "peak host memory.current: ${PEAK_HOST} MB (added $(( PEAK_HOST - BEFORE_HOST )) MB over baseline)"
+say "peak pool memory.current: ${PEAK_POOL} MB (judging alone)"
 say "headroom budget: ${MAX_MB} MB"
 say "worker exit codes: $R0 $R1"
 
@@ -170,10 +179,11 @@ fi
 SWAP_USED=$(awk '/^SwapTotal:/ {t=$2} /^SwapFree:/ {f=$2} END {print int((t-f)/1024)}' /proc/meminfo)
 say "swap in use now: ${SWAP_USED} MB"
 
-DELTA=$(( PEAK - BEFORE ))
+DELTA=$(( PEAK_HOST - BEFORE_HOST ))
+[ "$DELTA" -lt 0 ] && DELTA=0
 if [ "$DELTA" -le "$MAX_MB" ]; then
-    say "VERDICT: KEEP 2 WORKERS -- peak ${PEAK} MB, ${DELTA} MB above baseline, inside ${MAX_MB} MB headroom"
+    say "VERDICT: KEEP 2 WORKERS -- judging added ${DELTA} MB, inside the ${MAX_MB} MB headroom"
 else
-    say "VERDICT: SHIP 1 WORKER -- peak ${PEAK} MB, ${DELTA} MB above baseline, over ${MAX_MB} MB headroom"
+    say "VERDICT: SHIP 1 WORKER -- judging added ${DELTA} MB, over the ${MAX_MB} MB headroom"
 fi
 exit 0
