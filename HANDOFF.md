@@ -108,9 +108,10 @@ file and that file disagree, `lnd4su.md` wins — stop and ask.
    `networks:` line**; caddy's `ports:` list is **not** in numeric order (live
    order was `8452, 8453, 8451, 8444, 8448, 8449, 8450, 8443`) — anchor on
    content, never on a line number.
-7. **No invented content.** The only test problem that may exist is the temporary
-   `A+B` one, and it must be deleted before handover. No seed problems, no
-   placeholder statements presented as real.
+7. **Problems come from the operator, not from you.** The six real problems in
+   `deploy/problems/` are authored and verified; import them, do not edit their
+   test data, and do not invent extra problems. No placeholder statements
+   presented as real content.
 8. **Never claim live/passing without evidence** — pasted output from the
    operator, or a fetch you performed yourself. "Probably works" is not a report.
 
@@ -187,10 +188,7 @@ problem's memory limit — not changing the sandbox semantics.
 deploy/compose-snippet.yml     the service block, LND4SU_WORKERS=1, with measured notes
 deploy/caddy-snippet.txt       the door block + the rule about the ports list
 deploy/nsg-command.txt         the az command, priority 1011, with the "confirm first" note
-deploy/ab-test/ab.zip          1002 B: problem.json + statement.pdf (the temp A+B problem)
-deploy/ab-test/problem.json    slug ab, 10 cases, subtasks A (1-5) and B (6-10),
-                               tolerant compare, 1000 ms / 65536 KB
-deploy/ab-test/statement.pdf   848 B, hand-written valid PDF
+deploy/problems/                 the SIX REAL problems, ready to import (see §5b)
 step0/, step0b/                the probes that produced the gate results (keep, do not re-run)
 ```
 
@@ -354,17 +352,28 @@ before calling the deploy done.
 
 ## 6. Phase 4 — wiki links
 
-Do this **after** problems exist (acceptance creates then deletes one temp
-problem, so in practice this happens after handover, when the operator has
-authored real questions). Per question, one line appended to the end of the
-matching topic page, algo namespace first:
+All six problems carry `wiki_page_id = "algo:start"`, so each problem page's
+"back to material" link already points at `algo:start`. Per question, one line
+appended to the end of the `algo:start` page:
 
 ```
 **Latihan ngoding:** [[https://crymises-music.centralindia.cloudapp.azure.com:8454/p/<slug>|<Problem title>]]
 ```
 
-The problem's `wiki_page_id` must point at that same page, so the problem page's
-"back to material" link lands correctly.
+The six slugs:
+
+| slug | title |
+|---|---|
+| `grade-report` | Grade Report |
+| `palindrome-word-count` | Palindrome and Word Count |
+| `recursive-digit-tools` | Recursive Digit Tools |
+| `reverse-rotate-array` | Reverse and Rotate Array |
+| `dynamic-sort-menu` | Dynamic Sorting with Menu |
+| `student-records` | Student Records |
+
+If the operator later moves a question to a different page, change that
+problem's `wiki_page_id` in the admin form to match — the two must agree or the
+"back to material" link lands in the wrong place.
 
 Backup first:
 
@@ -382,24 +391,56 @@ only.
 
 ---
 
+## 6b. The six problems (already verified — do not edit their test data)
+
+`deploy/problems/*.zip`, each containing `problem.json` + `statement.pdf`.
+All: exactly 10 test cases, subtasks `A` (1-5) and `B` (6-10), tolerant compare,
+1000 ms / 65536 KB, `wiki_page_id = algo:start`.
+
+| bundle | difficulty | tags |
+|---|---|---|
+| `grade-report.zip` | Mudah | selection, repetition, functions |
+| `palindrome-word-count.zip` | Mudah | strings, chars, loops |
+| `recursive-digit-tools.zip` | Sedang | recursion, macros, preprocessor |
+| `reverse-rotate-array.zip` | Sedang | pointers, arrays, functions |
+| `dynamic-sort-menu.zip` | Sedang | malloc, realloc, sorting, pointers |
+| `student-records.zip` | Sedang | struct, arrays, files |
+
+Each was verified by writing an independent reference C solution and running it
+against all 10 cases through the judge's exact tolerant comparison: **all six
+scored 10/10, zero mismatches**. So a correct solution exists for every problem
+and the expected outputs are self-consistent.
+
+Two facts worth knowing when reading submissions:
+
+- `grade-report` — `-1` terminates input and is not a score; a score outside
+  0..100 prints `Invalid score` and is not counted.
+- `student-records` — `Highest:` is the **first** maximum-GPA student in input
+  order (ties keep the earlier record); `Honors:` lists GPA >= 3.00 in input
+  order.
+
+---
+
 ## 7. Phase 5 — acceptance, in order, report per item
 
-Use the temp problem `A+B` from `deploy/ab-test/ab.zip` (import it as admin;
-`problem.json` + `statement.pdf`, 10 cases, subtasks A and B). Delete it and its
-PDF at the end.
+Import the six real problems from `deploy/problems/` as admin (each `.zip` is a
+complete bundle: `problem.json` + `statement.pdf`, 10 cases, subtasks A and B).
+Use `grade-report` — the simplest of the six — as the subject for the judging
+checks below. The problems stay; nothing is deleted at the end.
 
 1. **Sandbox matrix** — already passed in Phase 0. Re-confirm from the report
    above; re-run `step0` only if the image changed.
 2. **Idle RAM under 50 MB** and `LND4SU_WORKERS=1` honoured: two quick
    submissions must **queue strictly**, never overlap. Prove with logs.
-3. **Phone-viewport full flow** — admin creates the A+B problem → submit a C
-   solution → submit a C++ solution → verdicts with all 10 cases shown, a failed
-   case showing input/expected/actual → `/me` history and stats.
+3. **Phone-viewport full flow** — submit a C solution → submit a C++ solution →
+   verdicts with all 10 cases shown, a failed case showing input/expected/actual
+   → `/me` history and stats.
 4. **Wiki flow** — a question opens from its wiki topic page; the problem page
    links back; Run mode works against custom stdin; partial scoring works
    (subtasks A and B, fail one group → score shows the passing group only).
-5. **Rejudge flips a verdict** (edit a case's expected output, rejudge) and
-   **export/import round-trips** (export A+B, delete, re-import, 10 cases intact).
+5. **Rejudge flips a verdict** (edit a case's expected output, rejudge, restore
+   it) and **export/import round-trips** (export `grade-report`, delete,
+   re-import, 10 cases intact).
 6. **Anonymous cannot execute** — forms are replaced by a login prompt, and a
    direct POST returns 401, not a crash. **Sandbox has no network** — submit a
    program that fetches a URL; it must fail (RE or WA), never succeed.
@@ -407,8 +448,6 @@ PDF at the end.
    then problems, submissions and sessions still present.
 8. **Neighbours healthy** — `docker ps` shows all services Up; spot-check the
    other doors; VM1 untouched at every point.
-9. **Delete the temp A+B problem and its PDF**, then confirm the list is empty and
-   `/opt/navidrome/judge-data/statements/` holds no file for it.
 
 Then hand over with: what works, measured idle RAM, the Step 0 matrix, the
 1-worker verdict and its numbers, the door URL, per-item acceptance pass/fail with
