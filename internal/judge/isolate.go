@@ -46,7 +46,13 @@ func (b *Box) Init(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("isolate --init: %v: %s", err, strings.TrimSpace(string(out)))
 	}
-	return os.MkdirAll(b.boxd(), 0o755)
+	if err := os.MkdirAll(b.boxd(), 0o777); err != nil {
+		return err
+	}
+	// isolate creates <id>/box as 0700 owned by the invoking user (root), but
+	// the program inside runs as an unprivileged box uid, so it could neither
+	// write the compiled binary nor touch /box at all.
+	return os.Chmod(b.boxd(), 0o777)
 }
 
 func (b *Box) Cleanup(ctx context.Context) {
